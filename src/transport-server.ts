@@ -28,6 +28,8 @@ export class ServerTransport implements MahTransport {
         // another process, credentials since corrected, session restored from
         // disk), and checking them first would block calls that would succeed.
         if (await this.auth.isSignedIn()) {
+          // isSignedIn() clears mfaPending itself — every caller that observes
+          // a live session benefits, not just this one.
           this.loggedIn = true;
           return;
         }
@@ -72,6 +74,8 @@ export class ServerTransport implements MahTransport {
     };
 
     let out = await send();
+    // Write back any cookie the portal rotated during ordinary traffic.
+    this.auth.persistIfDirty();
     // An expired session is a 200 whose body is the login page. Re-login once
     // and replay exactly once — never loop, because each attempt is a
     // credential submission and repeated failures escalate to a lockout.
@@ -79,6 +83,7 @@ export class ServerTransport implements MahTransport {
       this.loggedIn = false;
       await this.ensureSession();
       out = await send();
+      this.auth.persistIfDirty();
       if (/<title>[^<]*Login Page/i.test(out.body)) {
         throw new McpToolError('MyAtriumHealth session could not be re-established.', {
           hint: 'Run mah_auth_status; a verification code may be required again.',

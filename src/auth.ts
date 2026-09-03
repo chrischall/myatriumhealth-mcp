@@ -12,9 +12,11 @@
 // MFA is human-in-the-loop and nothing here bypasses it: when the portal
 // challenges, `login()` raises MfaRequiredError, the caller asks the human which
 // channel to use, the portal sends THEM a code, and the human supplies it to
-// `verifyCode`. What we persist afterwards is the `RememberDeviceId` the portal
-// hands back — the same "remember this device" token a browser stores, which is
-// what lets later logins skip the challenge.
+// `verifyCode`.
+//
+// Continuity comes from the PERSISTED COOKIE JAR, not a device token. The
+// `RememberDeviceId` the portal returns is recorded but deliberately never sent:
+// this portal will not redeem it, and including it breaks the challenge.
 
 import { McpToolError } from '@chrischall/mcp-utils';
 
@@ -178,6 +180,7 @@ export class MyAtriumHealthAuth {
 
   /** Persist the jar (and any device token) so a restart can resume. */
   private persist(deviceId?: string): void {
+    this.jarDirty = false;
     const { username } = this.credentials();
     const prev = this.store.load();
     const carried = prev?.username === username ? (prev.deviceId ?? '') : '';
@@ -190,6 +193,17 @@ export class MyAtriumHealthAuth {
     });
   }
 
+  /**
+   * Write the jar back if traffic changed it. A jar frozen at sign-in goes stale
+   * the moment the portal rotates a cookie, and the next restart resumes from
+   * the old one — which looks exactly like an expired session.
+   */
+  persistIfDirty(): void {
+    if (!this.jarDirty) return;
+    this.jarDirty = false;
+    this.persist();
+  }
+
   /** Is the CURRENT jar already a signed-in session? Costs one cheap GET. */
   async isSignedIn(): Promise<boolean> {
     if (this.jar.size === 0) return false;
@@ -197,7 +211,13 @@ export class MyAtriumHealthAuth {
     const loc = res.headers.get('location') ?? '';
     if (/SecondaryValidation/i.test(loc)) return false;
     if (/Authentication\/Login/i.test(loc)) return false;
-    return !/<title>[^<]*Login Page/i.test(body);
+    const live = !/<title>[^<]*Login Page/i.test(body);
+    // Clear here, not in the transport: mah_auth_status and mah_healthcheck call
+    // this directly, so clearing further out left them able to report a live
+    // session beside a pending verification. This is the one place that
+    // observes the answer, so it is the one place that should settle the flag.
+    if (live) this.mfaPending = false;
+    return live;
   }
 
   /** Redact the live password out of any text before it can surface. */
@@ -207,13 +227,21 @@ export class MyAtriumHealthAuth {
     return text.split(password).join('[redacted]');
   }
 
+  /** Set when a response changed the jar, so rotation is written back. */
+  private jarDirty = false;
+
   private absorb(res: Response): void {
     const setCookies =
       (res.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.() ?? [];
     for (const sc of setCookies) {
       const [pair] = sc.split(';');
       const i = pair?.indexOf('=') ?? -1;
-      if (pair !== undefined && i > 0) this.jar.set(pair.slice(0, i).trim(), pair.slice(i + 1));
+      if (pair !== undefined && i > 0) {
+        const name = pair.slice(0, i).trim();
+        const value = pair.slice(i + 1);
+        if (this.jar.get(name) !== value) this.jarDirty = true;
+        this.jar.set(name, value);
+      }
     }
   }
 
@@ -417,8 +445,11 @@ export class MyAtriumHealthAuth {
   }
 
   /**
-   * Submit the code the human received. On success the portal returns a
-   * `RememberDeviceId`, which is persisted so later logins skip the challenge.
+   * Submit the code the human received.
+   *
+   * The portal returns a `RememberDeviceId`, which is recorded for reference but
+   * is NOT what keeps you signed in — this portal refuses to redeem it. The
+   * session survives restarts because the cookie jar is persisted here.
    */
   async verifyCode(code: string, rememberDevice = true): Promise<{ remembered: boolean }> {
     await this.challengeContext(true);

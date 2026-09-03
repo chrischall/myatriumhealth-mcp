@@ -369,3 +369,67 @@ describe('a refused credential latches', () => {
     expect(count.n).toBe(2);
   });
 });
+
+describe('auto-review round 2 (PR #8)', () => {
+  it('clears a pending challenge when a live session is discovered', async () => {
+    // Otherwise mah_healthcheck reports sessionResumable:true next to
+    // verificationPending:true — two statements that cannot both be useful.
+    const store = memoryStore();
+    store.save({ deviceId: '', username: USER, cookies: [['SESS', 'abc']] } as never);
+    const { fetchImpl } = harness(() => ({ status: 200, body: '<title>MyAtriumHealth - Home</title>' }));
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: store });
+    (auth as unknown as { mfaPending: boolean }).mfaPending = true;
+    const { ServerTransport } = await import('../src/transport-server.js');
+    await new ServerTransport(auth).fetch({ method: 'GET', path: 'Home' });
+    expect((auth as unknown as { mfaPending: boolean }).mfaPending).toBe(false);
+  });
+
+  it('persists cookies rotated during ordinary traffic, not just at sign-in', async () => {
+    // A jar frozen at sign-in goes stale the moment the portal rotates a
+    // cookie, and the restart silently resumes from the old one.
+    const store = memoryStore();
+    store.save({ deviceId: '', username: USER, cookies: [['SESS', 'old']] } as never);
+    const { fetchImpl } = harness(() => ({
+      status: 200,
+      headers: { 'set-cookie': 'SESS=rotated; Path=/' },
+      body: '<title>MyAtriumHealth - Home</title>',
+    }));
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: store });
+    const { ServerTransport } = await import('../src/transport-server.js');
+    await new ServerTransport(auth).fetch({ method: 'GET', path: 'api/x/Y' });
+    const rec = store.load() as unknown as { cookies: [string, string][] };
+    expect(Object.fromEntries(rec.cookies)['SESS']).toBe('rotated');
+  });
+});
+
+describe('auto-review round 3 (PR #10)', () => {
+  const live = { status: 200, body: '<title>MyAtriumHealth - Home</title>' };
+  const withSession = () => {
+    const store = memoryStore();
+    store.save({ deviceId: '', username: USER, cookies: [['SESS', 'abc']] } as never);
+    return store;
+  };
+
+  it('clears a stale challenge flag via isSignedIn itself, not just via the transport', async () => {
+    // mah_auth_status and mah_healthcheck call isSignedIn() DIRECTLY. Clearing
+    // the flag only inside ServerTransport left them able to report
+    // sessionResumable:true beside verificationPending:true.
+    const { fetchImpl } = harness(() => live);
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: withSession() });
+    (auth as unknown as { mfaPending: boolean }).mfaPending = true;
+    expect(await auth.isSignedIn()).toBe(true);
+    expect((auth as unknown as { mfaPending: boolean }).mfaPending).toBe(false);
+  });
+
+  it('leaves the flag set when the session is NOT live', async () => {
+    const { fetchImpl } = harness(() => ({
+      status: 302,
+      headers: { location: '/myatriumhealth/Authentication/SecondaryValidation' },
+      body: '',
+    }));
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: withSession() });
+    (auth as unknown as { mfaPending: boolean }).mfaPending = true;
+    expect(await auth.isSignedIn()).toBe(false);
+    expect((auth as unknown as { mfaPending: boolean }).mfaPending).toBe(true);
+  });
+});
