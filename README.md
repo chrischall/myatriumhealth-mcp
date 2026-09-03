@@ -58,6 +58,7 @@ All read-only — this surface exposes no writes.
 | `mah_get_health_summary` | Health-summary header and action plans |
 | `mah_list_message_folders` | Message Center folders with unread counts |
 | `mah_list_messages` | Message Center conversations for a folder |
+| `mah_list_insurance` | Insurance coverages on file |
 | `mah_get_menu` | Which portal features this account exposes |
 | `mah_healthcheck` | Bridge health, and whether the portal session is signed in |
 

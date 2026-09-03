@@ -210,6 +210,7 @@ export class MyAtriumHealthClient {
   async legacy<T = unknown>(
     path: string,
     query: Record<string, string> = {},
+    form: Record<string, string> = {},
   ): Promise<T> {
     const token = await this.getToken();
     const qs = new URLSearchParams({
@@ -225,7 +226,7 @@ export class MyAtriumHealthClient {
           'X-Requested-With': 'XMLHttpRequest',
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: '',
+        body: new URLSearchParams(form).toString(),
       },
       path,
     );

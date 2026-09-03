@@ -45,6 +45,7 @@ describe('tool roster', () => {
       'mah_list_goals',
       'mah_list_health_issues',
       'mah_list_immunizations',
+      'mah_list_insurance',
       'mah_list_medications',
       'mah_list_message_folders',
       'mah_list_messages',

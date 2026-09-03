@@ -92,3 +92,17 @@ print(json.dumps({"tag":int(tag),"localLoadParams":load,"externalLoadParams":ext
                   "searchQuery":"","PageNonce":nonce}))' "$tag" "$nonce" \
     | { read -r body; mah_api conversations/GetConversationList "$body"; }
 }
+
+# mah_legacy_form <Area/Controller/Action> <urlencoded-form-body>
+# Some legacy endpoints require a form BODY rather than query params — e.g.
+# Insurance/Coverages/GetCoverages needs isStandAlone=true, and returns the
+# "Oops!" error page without it.
+mah_legacy_form() {
+  local ep="$1" form="$2" tok
+  tok="$(mah_token)" || return 2
+  fpx request "$MAH_BASE/$ep?noCache=0.$RANDOM" -p "$MAH_PROFILE" -X POST \
+    -H "__RequestVerificationToken: $tok" \
+    -H "X-Requested-With: XMLHttpRequest" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "$form"
+}

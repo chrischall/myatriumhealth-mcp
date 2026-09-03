@@ -71,6 +71,58 @@ export function registerAccountTools(
   );
 
   server.registerTool(
+    'mah_list_insurance',
+    {
+      description:
+        'List insurance coverages on file: active, pending submission or deletion, ' +
+        'in review, and in verification.',
+      annotations: toolAnnotations({ readOnly: true }),
+      inputSchema: {
+        compact: z
+          .boolean()
+          .default(false)
+          .describe('Flatten every bucket to one row per coverage, tagged with its bucket.'),
+      },
+    },
+    async ({ compact }) => {
+      const raw = await client.legacy('Insurance/Coverages/GetCoverages', {}, {
+        isStandAlone: 'true',
+      });
+      return jsonResult(
+        project(raw, compact, 'Insurance/Coverages/GetCoverages', (r: Record<string, unknown>) => {
+          const buckets = [
+            'ActiveCoverages',
+            'CoveragesPendingSubmission',
+            'CoveragesPendingDeletion',
+            'CoveragesInReview',
+            'CoveragesInVerification',
+          ] as const;
+          if (!buckets.some((b) => Array.isArray(r[b]))) return undefined;
+          return buckets.flatMap((b) =>
+            ((r[b] as Record<string, unknown>[] | undefined) ?? []).map((c) =>
+              tidy({
+                bucket: b,
+                coverage: c['CoverageName'],
+                plan: c['PlanName'],
+                payor: c['PayorName'],
+                memberId: c['MemberId'],
+                groupNumber: c['GroupNumber'],
+                status: c['Status'],
+                type: c['CoverageType'],
+                effective: c['FormattedEffectiveDate'],
+                ends: c['FormattedEndDate'],
+                subscriber: c['SubscriberName'],
+                patientIsSubscriber: c['PatientIsSubscriber'],
+                termed: c['Termed'],
+              }),
+            ),
+          );
+        }),
+      );
+    },
+  );
+
+  server.registerTool(
     'mah_get_menu',
     {
       description:

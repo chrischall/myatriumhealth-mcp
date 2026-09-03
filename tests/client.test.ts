@@ -150,3 +150,15 @@ describe('conversation list body assembly', () => {
     });
   });
 });
+
+describe('legacy form bodies', () => {
+  it('sends form fields in the body, not the query string', async () => {
+    const t = new FakeTransport((i) =>
+      i.path.includes('GetCoverages') ? ok('{"ActiveCoverages":[]}') : ok(signedInPage()));
+    const c = new MyAtriumHealthClient({ transport: t });
+    await c.legacy('Insurance/Coverages/GetCoverages', {}, { isStandAlone: 'true' });
+    const call = t.calls.find((x) => x.path.includes('GetCoverages'))!;
+    expect(call.body).toBe('isStandAlone=true');
+    expect(call.path).not.toContain('isStandAlone');
+  });
+});

@@ -78,6 +78,20 @@ prioritizedInstantDisplay, resultType, read}`.
 Folder tags seen: `1` Conversations/inbox, `2` Archive, `3`, `6`, `7`
 (Bookmarked / Appointments / Automated — exact mapping unconfirmed).
 
+## Insurance
+
+    mah_legacy_form Insurance/Coverages/GetCoverages 'isStandAlone=true' | jq '.ActiveCoverages'
+
+Needs the form body `isStandAlone=true`; an empty body returns the "Oops!" page.
+Coverages arrive in five buckets — `ActiveCoverages`, `CoveragesPendingSubmission`,
+`CoveragesPendingDeletion`, `CoveragesInReview`, `CoveragesInVerification` — so check
+all of them, not just the first. Each item has `CoverageName`, `PlanName`, `PayorName`,
+`MemberId`, `GroupNumber`, `Status`, `CoverageType`, `FormattedEffectiveDate`,
+`FormattedEndDate`, `SubscriberName`, `PatientIsSubscriber`, `Termed` and more.
+
+Billing, Documents and Care Team have **no data endpoint** — they are server-rendered
+HTML and would need parsing, not an API call.
+
 ## Visits (legacy form-encoded endpoints — use `mah_legacy`)
 
     mah_legacy Visits/VisitsList/LoadUpcoming "timeZone=America%2FNew_York&ComponentNumber=5" \

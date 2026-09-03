@@ -64,6 +64,10 @@
       "description": "List immunizations and administration dates by organization"
     },
     {
+      "name": "mah_list_insurance",
+      "description": "List insurance coverages on file, including pending and in-review coverages"
+    },
+    {
       "name": "mah_list_medications",
       "description": "List current medications with dosing instructions and prescriber"
     },

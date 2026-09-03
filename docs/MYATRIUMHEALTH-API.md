@@ -125,3 +125,40 @@ Do NOT try to satisfy the nonce by generating values — it is an anti-CSRF cont
 read the one the server sent.
 
 `api/item-feed/FetchItemFeed` still needs parameters that have not been captured.
+
+## Insurance (legacy, form-encoded)
+
+`POST Insurance/Coverages/GetCoverages` with the form body `isStandAlone=true`
+→ `{ActiveCoverages[], CoveragesPendingSubmission[], CoveragesPendingDeletion[],
+CoveragesInReview[], CoveragesInVerification[], IsProxyContext, HasExistingCoveragesInRTE,
+Settings{IsStandAlone, CanUpdate, CanViewDetails, CanPayPremium, CanViewInsHub, IsInsHubOn}}`.
+
+Parameters were read from the shipped bundle (`bundles/insurance-controllers`):
+
+    $.post({url: P, data: {isStandAlone, encounterCsn, encounterDepartmentId, encounterDTE}})
+
+An empty body returns the "Oops!" error page. Supplying `encounterCsn=0` narrows the
+result (219 bytes vs 1189), so the encounter fields really do filter — `isStandAlone=true`
+alone is the standalone-page call.
+
+Coverage items were observed via `CoveragesInReview` (the account has zero *active*
+coverages but one in review — an earlier note here wrongly concluded the item shape was
+uncapturable, having only checked `ActiveCoverages`). Fields:
+
+    BackDocument, Comments, CoverageFHIRId, CoverageId, CoverageName, CoverageType,
+    CvgCoveredStatus, CvgReason, FormattedEffectiveDate, FormattedEndDate, FrontDocument,
+    Future, GroupNumber, Index, IsCoverageDocumentFromPayer, MemberDateOfBirth,
+    MemberFirstName, MemberId, MemberLastName, MemberName, OrganizationId,
+    PatientIsSubscriber, PayorId, PayorName, PbiId, PlanName, Status,
+    SubscriberDateOfBirth, SubscriberFirstName, SubscriberId, SubscriberIsSelf,
+    SubscriberLastName, SubscriberName, SuspendedText, Termed
+
+`POST Insurance/Coverages/GetPayors` (empty body) → `{Payors}`, a reference list of
+insurers.
+
+## Areas with no data endpoint (server-rendered HTML)
+
+Billing (`Billing/Summary`), Documents (`Documents`) and Care Team (`CareTeam`) issue no
+XHR beyond `api/search/LoadMenuInfo` — their data is rendered into the page HTML. Exposing
+them means parsing HTML (node-html-parser), not calling an endpoint. Verified by walking
+each page with the network log open.
