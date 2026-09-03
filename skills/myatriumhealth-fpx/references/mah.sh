@@ -80,8 +80,13 @@ mah_legacy() {
 # local one, or handles taken from the visits response, returns HTTP 500).
 mah_messages() {
   local tag="${1:-1}" nonce orgs
-  nonce="$(mah_nonce app/communication-center)" || return 2
-  orgs="$(mah_api conversations/GetOrganizations)" || return 2
+  # Same emptiness guard as mah_api/mah_legacy: a helper can exit 0 and print
+  # nothing, and an empty nonce or org list silently produces a body the API
+  # rejects with an opaque error.
+  nonce="$(mah_nonce app/communication-center)"
+  [ -n "$nonce" ] || { echo "no page nonce — is a signed-in my.atriumhealth.org tab open?" >&2; return 2; }
+  orgs="$(mah_api conversations/GetOrganizations)"
+  [ -n "$orgs" ] || { echo "could not read organizations — sign in and retry" >&2; return 2; }
   printf %s "$orgs" | python3 -c '
 import json,sys
 tag,nonce = sys.argv[1], sys.argv[2]
@@ -99,7 +104,10 @@ print(json.dumps({"tag":int(tag),"localLoadParams":load,"externalLoadParams":ext
 # "Oops!" error page without it.
 mah_legacy_form() {
   local ep="$1" form="$2" tok
-  tok="$(mah_token)" || return 2
+  # Guard on EMPTINESS, not just exit status: mah_token exits 0 while printing
+  # nothing when the page loads but the token regex does not match.
+  tok="$(mah_token)"
+  [ -n "$tok" ] || { echo "no antiforgery token — sign in to MyAtriumHealth in Chrome, then retry" >&2; return 2; }
   fpx request "$MAH_BASE/$ep?noCache=0.$RANDOM" -p "$MAH_PROFILE" -X POST \
     -H "__RequestVerificationToken: $tok" \
     -H "X-Requested-With: XMLHttpRequest" \
