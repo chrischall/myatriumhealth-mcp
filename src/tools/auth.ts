@@ -14,8 +14,8 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
     'mah_auth_status',
     {
       description:
-        'Report whether bridge-less sign-in is configured and whether a trusted device ' +
-        'token is stored (so verification can be skipped).',
+        'Report whether a stored session can be resumed, and whether a verification is ' +
+        'pending. Session continuity comes from the persisted cookie jar.',
       annotations: toolAnnotations({ readOnly: true }),
       inputSchema: {},
     },
@@ -27,7 +27,8 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
         trustedDeviceStored: hasDevice,
         nextStep: resumable
           ? 'A stored session is still live; no sign-in needed.'
-          : 'Call mah_sign_in; a verification code may be required.',
+          : 'Call mah_sign_in; a verification code may be required. The stored device ' +
+            'token does NOT skip it — this portal will not redeem it.',
       });
     },
   );
@@ -92,15 +93,18 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
     'mah_verify_code',
     {
       description:
-        'Submit the verification code the user received. On success the portal returns a ' +
-        'device-trust token, stored locally so future sign-ins skip verification.',
+        'Submit the verification code the user received. On success the session is stored ' +
+        'so restarts resume without signing in again, until it lapses.',
       annotations: toolAnnotations({ readOnly: false }),
       inputSchema: {
         code: z.string().min(4).describe('The code the USER received. Never guess or generate it.'),
         rememberDevice: z
           .boolean()
           .default(true)
-          .describe('Store the portal\'s device-trust token so later sign-ins skip verification.'),
+          .describe(
+            "Record the portal's device-trust token. NOTE: this portal does not redeem it, " +
+            'so it does not skip future verification; the persisted session is what carries over.',
+          ),
       },
     },
     async ({ code, rememberDevice }) => {
@@ -108,9 +112,9 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
       return jsonResult({
         verified: true,
         trustedDeviceStored: r.remembered,
-        nextStep: r.remembered
-          ? 'Future sign-ins should not require a code.'
-          : 'Device not remembered — verification will be required again next time.',
+        nextStep:
+          'The session is stored, so restarts resume without signing in until it lapses. ' +
+          'When it does, this same flow runs again — nothing needs reconnecting.',
       });
     },
   );

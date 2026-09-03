@@ -37,7 +37,7 @@
   "tools": [
     {
       "name": "mah_auth_status",
-      "description": "Report whether bridge-less sign-in is configured and a trusted device is stored"
+      "description": "Report whether a stored session can be resumed and whether verification is pending"
     },
     {
       "name": "mah_get_health_summary",
@@ -113,7 +113,7 @@
     },
     {
       "name": "mah_verify_code",
-      "description": "Submit the code the user received and store the portal's device-trust token"
+      "description": "Submit the code the user received; stores the session so restarts resume"
     }
   ],
   "compatibility": {
