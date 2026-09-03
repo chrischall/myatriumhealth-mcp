@@ -100,7 +100,7 @@ await runMcp({
       ? [
           (server: Parameters<typeof registerAuthTools>[0]) => registerAuthTools(server, auth),
           (server: Parameters<typeof registerBridgelessHealthcheckTools>[0]) =>
-            registerBridgelessHealthcheckTools(server, client, auth),
+            registerBridgelessHealthcheckTools(server, auth),
         ]
       : []),
     ...(bridge !== undefined

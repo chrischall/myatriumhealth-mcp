@@ -30,7 +30,6 @@ export function registerHealthcheckTools(
  */
 export function registerBridgelessHealthcheckTools(
   server: McpServer,
-  client: MyAtriumHealthClient,
   auth: MyAtriumHealthAuth,
 ): void {
   registerCredentialHealthcheckTool({
@@ -56,6 +55,11 @@ export function registerBridgelessHealthcheckTools(
       // would send people to check MAH_USERNAME, which is not the problem.
       return { source: 'env', detail };
     },
-    probeFn: () => client.page('Home'),
+    // Deliberately NOT routed through the client/transport: that would run
+    // ensureSession(), so a healthcheck on a signed-out session would silently
+    // submit credentials. A healthcheck must observe state, never change it —
+    // and on an account whose login controller can switch on a captcha, a
+    // diagnostic that logs in is actively harmful.
+    probeFn: () => auth.request('Home'),
   });
 }

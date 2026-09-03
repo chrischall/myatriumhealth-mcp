@@ -317,3 +317,17 @@ describe('ServerTransport session handling', () => {
     expect(logins).toBeLessThanOrEqual(2);
   });
 });
+
+describe('healthcheck must not authenticate', () => {
+  it('probing a signed-out session submits no credentials', async () => {
+    let logins = 0;
+    const { fetchImpl } = harness((url) => {
+      if (url.includes('DoLogin')) { logins++; return { status: 302, headers: { location: '/myatriumhealth/Home' } }; }
+      return { body: loginPage };
+    });
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: memoryStore() });
+    // What the healthcheck's probeFn does: a raw request on the auth jar.
+    await auth.request('Home');
+    expect(logins).toBe(0);
+  });
+});
