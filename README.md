@@ -20,6 +20,12 @@ hosting possible. Verification is **human-in-the-loop**: the portal challenges,
 **you**, and `mah_verify_code` submits only what you provide. Nothing here bypasses the
 second factor.
 
+**When the session expires** you do *not* reconnect the MCP or restart anything. The
+next tool call returns an actionable error naming the channels and your masked
+destinations; you pick one, the portal texts or emails **you**, and `mah_verify_code`
+resumes the session in place. A pending challenge is remembered, so further tool calls
+report it rather than re-submitting your password each time.
+
 **How the session persists.** After one verification the cookie jar is stored (0600,
 bound to the account) and reused, so restarts resume the existing session rather than
 signing in again — no browser and no further codes until the session lapses.

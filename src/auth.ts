@@ -143,6 +143,13 @@ export class MyAtriumHealthAuth {
   private readonly credentials: AuthOptions['credentials'];
   private readonly store: StateLike;
   private context: ChallengeContext | null = null;
+  /**
+   * A challenge is outstanding. Held so that repeated tool calls do not each
+   * re-submit the password: the portal is waiting for a code, not for another
+   * login, and hammering it is both wasteful and indistinguishable from an
+   * attack. Cleared by a successful {@link verifyCode}.
+   */
+  mfaPending = false;
   /** The CHALLENGE page's antiforgery token — distinct from the login page's. */
   private challengeToken: string | undefined;
 
@@ -334,6 +341,7 @@ export class MyAtriumHealthAuth {
       // context failed to parse and SendCode returned 500; without one it
       // parsed and returned Success:true.
       const ctx = await this.challengeContext();
+      this.mfaPending = true;
       throw new MfaRequiredError(ctx?.channels ?? ['sms', 'email'], {
         ...(ctx?.displayEmail !== undefined ? { email: ctx.displayEmail } : {}),
         ...(ctx?.displayPhone !== undefined ? { phone: ctx.displayPhone } : {}),
@@ -415,6 +423,7 @@ export class MyAtriumHealthAuth {
     }
 
     const id = parsed.RememberDeviceId;
+    this.mfaPending = false;
     const { username } = this.credentials();
     // Persist the jar either way: the session established by verifying is worth
     // keeping even if the device token turns out not to be honoured.

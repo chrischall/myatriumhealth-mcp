@@ -4,7 +4,7 @@
 
 import { McpToolError } from '@chrischall/mcp-utils';
 import type { MyAtriumHealthAuth } from './auth.js';
-import { BASE } from './auth.js';
+import { BASE, MfaRequiredError } from './auth.js';
 import type { FetchInit, FetchResult, MahTransport } from './transport.js';
 
 export class ServerTransport implements MahTransport {
@@ -19,6 +19,14 @@ export class ServerTransport implements MahTransport {
 
   private async ensureSession(): Promise<void> {
     if (this.loggedIn) return;
+    // Already waiting on a code: surface that instead of logging in again.
+    if (this.auth.mfaPending) {
+      const ctx = await this.auth.challengeContext();
+      throw new MfaRequiredError(ctx?.channels ?? ['sms', 'email'], {
+        ...(ctx?.displayEmail !== undefined ? { email: ctx.displayEmail } : {}),
+        ...(ctx?.displayPhone !== undefined ? { phone: ctx.displayPhone } : {}),
+      });
+    }
     this.inFlight ??= (async () => {
       try {
         // A persisted jar may already be a live session — that is the whole

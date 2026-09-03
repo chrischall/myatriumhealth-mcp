@@ -174,3 +174,33 @@ describe('challenge context parsing', () => {
     expect(parseChallengeContext('<html>nothing</html>')).toBeNull();
   });
 });
+
+describe('a pending challenge is not re-attempted', () => {
+  it('does not re-submit credentials once verification is already required', async () => {
+    let logins = 0;
+    const { fetchImpl } = harness((url) => {
+      if (url.includes('DoLogin')) { logins++; return { status: 302, headers: { location: '/myatriumhealth/Home' } }; }
+      if (url.includes('SecondaryValidation')) return { body: '<title>Extra Security Required</title>' };
+      if (url.endsWith('/Home')) return { status: 302, headers: { location: '/myatriumhealth/Authentication/SecondaryValidation' } };
+      return { body: loginPage };
+    });
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: memoryStore() });
+    const { ServerTransport } = await import('../src/transport-server.js');
+    const t = new ServerTransport(auth);
+    // Three tool calls while unverified must cost ONE credential submission,
+    // not three: repeated logins are wasteful and look like an attack.
+    for (let i = 0; i < 3; i++) await t.fetch({ method: 'GET', path: 'Home' }).catch(() => {});
+    expect(logins).toBe(1);
+  });
+
+  it('clears the pending challenge once a code is verified', async () => {
+    const { fetchImpl } = harness((url) =>
+      url.includes('Validate')
+        ? { body: '{"Success":true,"RememberDeviceId":"D1"}' }
+        : { body: loginPage });
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: memoryStore() });
+    (auth as unknown as { mfaPending: boolean }).mfaPending = true;
+    await auth.verifyCode('123456');
+    expect((auth as unknown as { mfaPending: boolean }).mfaPending).toBe(false);
+  });
+});
