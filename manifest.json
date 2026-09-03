@@ -36,6 +36,10 @@
   },
   "tools": [
     {
+      "name": "mah_auth_status",
+      "description": "Report whether bridge-less sign-in is configured and a trusted device is stored"
+    },
+    {
       "name": "mah_get_health_summary",
       "description": "Fetch the health-summary header and action plans"
     },
@@ -98,6 +102,18 @@
     {
       "name": "mah_list_upcoming_visits",
       "description": "List upcoming and in-progress appointments"
+    },
+    {
+      "name": "mah_send_verification_code",
+      "description": "Ask the portal to send a verification code to the account holder"
+    },
+    {
+      "name": "mah_sign_in",
+      "description": "Sign in server-side; reports the verification channels when a code is required"
+    },
+    {
+      "name": "mah_verify_code",
+      "description": "Submit the code the user received and store the portal's device-trust token"
     }
   ],
   "compatibility": {

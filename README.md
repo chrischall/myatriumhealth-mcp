@@ -7,6 +7,29 @@ immunizations, health issues, goals and visits.
 > This project was developed and is maintained by AI. Use at your own discretion.
 > It reads personal health information, and only ever from the signed-in user's own account.
 
+## Two ways to authenticate
+
+| Mode | When | Credentials held |
+|---|---|---|
+| **Browser bridge** (default) | no credentials configured | **none** |
+| **Bridge-less** | `MAH_USERNAME` + `MAH_PASSWORD` set | your portal password, on disk |
+
+Bridge-less logs in server-side — no browser, no extension — which is what makes
+hosting possible. Verification is **human-in-the-loop**: the portal challenges,
+`mah_sign_in` reports the channels your account allows, the portal sends a code to
+**you**, and `mah_verify_code` submits only what you provide. Nothing here bypasses the
+second factor.
+
+> **Known limitation.** The device-trust token the portal returns does **not** currently
+> skip verification: `SecondaryValidation/DeviceCheck` answers `200 {}` rather than
+> `{Success:true}` and the session stays challenged. This account reports
+> `RememberMeSettings.EnrollDeviceTracking: False`, which is the likely cause. So
+> bridge-less needs a code per fresh process today — fine interactively, not yet
+> unattended.
+
+The bridge mode's real virtue is that it holds **no credentials at all**. Prefer it
+unless you specifically need bridge-less.
+
 ## How it works
 
 Every MyChart cookie is `HttpOnly` and login is MFA-gated, so the session cannot be
