@@ -42,7 +42,7 @@ export function registerAccountTools(
         compact: z
           .boolean()
           .default(false)
-          .describe('Project to subject, preview, sender and date. The raw envelope is ~99 KB.'),
+          .describe('Project to subject, participants, preview and date. The raw envelope is ~99 KB.'),
       },
     },
     async ({ folder, compact }) => {
@@ -50,12 +50,22 @@ export function registerAccountTools(
       return jsonResult(
         project(raw, compact, 'conversations/GetConversationList', (r: {
           conversations?: Record<string, unknown>[];
+          users?: Record<string, { name?: string }>;
         }) =>
           r.conversations?.map((c) => {
             const msgs = (c['messages'] as Record<string, unknown>[] | undefined) ?? [];
             const first = msgs[0] ?? {};
+            // The per-message author is NOT resolvable: `author.displayName` is
+            // empty on every conversation observed, and `author.wprKey` does not
+            // match any key in the response's `users` map. The thread's
+            // `userKeys` DO resolve, so participants are what can honestly be
+            // reported here.
+            const participants = ((c['userKeys'] as string[] | undefined) ?? [])
+              .map((k) => r.users?.[k]?.name)
+              .filter((n): n is string => typeof n === 'string' && n !== '');
             return tidy({
               subject: c['subject'],
+              participants: participants.length > 0 ? participants : undefined,
               preview: c['previewText'],
               messageType: c['messageType'],
               date: first['deliveryInstantISO'],

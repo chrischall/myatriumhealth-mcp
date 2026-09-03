@@ -85,7 +85,7 @@
     },
     {
       "name": "mah_list_messages",
-      "description": "List Message Center conversations for a folder, with sender, subject and date"
+      "description": "List Message Center conversations for a folder, with participants, subject and date"
     },
     {
       "name": "mah_list_past_visits",
