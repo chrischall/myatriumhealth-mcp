@@ -59,6 +59,8 @@ All read-only — this surface exposes no writes.
 | `mah_list_message_folders` | Message Center folders with unread counts |
 | `mah_list_messages` | Message Center conversations for a folder |
 | `mah_list_insurance` | Insurance coverages on file |
+| `mah_list_care_team` | Care team providers, internal and external |
+| `mah_list_billing_accounts` | Billing accounts and balances (parsed from HTML) |
 | `mah_get_menu` | Which portal features this account exposes |
 | `mah_healthcheck` | Bridge health, and whether the portal session is signed in |
 

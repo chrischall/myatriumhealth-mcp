@@ -89,8 +89,17 @@ all of them, not just the first. Each item has `CoverageName`, `PlanName`, `Payo
 `MemberId`, `GroupNumber`, `Status`, `CoverageType`, `FormattedEffectiveDate`,
 `FormattedEndDate`, `SubscriberName`, `PatientIsSubscriber`, `Termed` and more.
 
-Billing, Documents and Care Team have **no data endpoint** — they are server-rendered
-HTML and would need parsing, not an API call.
+## Care team
+
+    mah_legacy Clinical/CareTeam/Load "hfrId=&sources=&actions=&isPrimaryStandalone=true&ComponentNumber=2" \
+      | jq '[.ProvidersList[] | {name: .Name, specialty: .Specialty, relation: .Relation}]'
+
+`LoadExternal` (same query minus `isPrimaryStandalone`) returns providers at linked
+outside organizations. The page shows the union of both — de-duplicate on `.ID`.
+
+Billing is server-rendered with **no data endpoint**; the MCP's
+`mah_list_billing_accounts` parses it. Documents renders no list on its landing page and
+has not been captured.
 
 ## Visits (legacy form-encoded endpoints — use `mah_legacy`)
 

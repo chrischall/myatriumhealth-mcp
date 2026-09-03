@@ -206,6 +206,20 @@ export class MyAtriumHealthClient {
     });
   }
 
+  /**
+   * Care team providers. The page issues TWO calls — `Load` for providers at
+   * this organization and `LoadExternal` for those at linked outside ones — and
+   * shows the union, so a single tool must too.
+   */
+  async careTeam(): Promise<{ internal: unknown; external: unknown }> {
+    const common = { hfrId: '', sources: '', actions: '', ComponentNumber: '2' };
+    const [internal, external] = await Promise.all([
+      this.legacy('Clinical/CareTeam/Load', { ...common, isPrimaryStandalone: 'true' }),
+      this.legacy('Clinical/CareTeam/LoadExternal', { ...common }),
+    ]);
+    return { internal, external };
+  }
+
   /** POST a legacy form-encoded endpoint, with the cache-buster Epic expects. */
   async legacy<T = unknown>(
     path: string,

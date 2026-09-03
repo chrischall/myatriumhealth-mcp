@@ -130,6 +130,51 @@ export function registerRecordTools(
   );
 
   server.registerTool(
+    'mah_list_care_team',
+    {
+      description:
+        'List care team providers — name, specialty and relationship — from this ' +
+        'organization and from linked outside organizations.',
+      annotations: toolAnnotations({ readOnly: true }),
+      inputSchema: compactArg,
+    },
+    async ({ compact }) => {
+      const raw = await client.careTeam();
+      return jsonResult(
+        project(raw, compact, 'Clinical/CareTeam/Load', (r2: {
+          internal?: { ProvidersList?: Record<string, unknown>[] };
+          external?: { ProvidersList?: Record<string, unknown>[] };
+        }) => {
+          const lists = [r2.internal?.ProvidersList, r2.external?.ProvidersList];
+          if (!lists.some(Array.isArray)) return undefined;
+          const seen = new Set<string>();
+          return lists
+            .flatMap((l) => l ?? [])
+            // Load and LoadExternal can surface the same provider; de-duplicate
+            // on ID so the union does not double-count.
+            .filter((p) => {
+              const id = String(p['ID'] ?? p['Name'] ?? '');
+              if (seen.has(id)) return false;
+              seen.add(id);
+              return true;
+            })
+            .map((p) =>
+              tidy({
+                name: p['Name'],
+                specialty: p['Specialty'],
+                relation: p['Relation'],
+                external: p['IsExternal'],
+                status: p['CareTeamStatus'],
+                npi: p['NationalProviderID'],
+                canMessage: p['CanMessage'],
+              }),
+            );
+        }),
+      );
+    },
+  );
+
+  server.registerTool(
     'mah_list_goals',
     {
       description: 'List patient goals tracked in MyAtriumHealth.',
