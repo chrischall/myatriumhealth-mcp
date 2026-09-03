@@ -92,21 +92,33 @@ Past visits are grouped by an opaque organization handle under `.List`.
 
 ---
 
-## Known gap — the message list
+## Messages
 
-`api/conversations/GetConversationList` needs a five-key body:
+    mah_messages       | jq '[.conversations[] | {subject, preview: .previewText,
+                              date: .messages[0].deliveryInstantISO,
+                              unread: ([.messages[].isUnread] | any)}]'
+    mah_messages 2     | jq '.conversations | length'    # 2 = Archive
+
+`POST api/conversations/GetConversationList` needs a five-key body, and every part
+matters — this is the one endpoint here that cannot be called with `{}`:
 
     {"tag":1,
      "localLoadParams":{"loadStartInstantISO":"","loadEndInstantISO":"","pagingInfo":1},
-     "externalLoadParams":{"<orgHandle>":{"communicationCenter":{…same three fields…}}},
+     "externalLoadParams":{"<external org handle>":{"communicationCenter":{…same three…}}},
      "searchQuery":"",
-     "PageNonce":"<32-hex CSP nonce, see mah_nonce>"}
+     "PageNonce":"<32-hex CSP nonce from an /app/* page>"}
 
-Replaying the app's own captured body returns 200. Rebuilding it from the shell does
-**not** yet work: omitting or emptying `externalLoadParams` returns 500, and the
-organization handles from the visits response are not the set the communication center
-uses. Unresolved: where that handle set comes from. `api/item-feed/FetchItemFeed` is
-in the same category.
+**`externalLoadParams` takes the NON-local organizations only.** Get them from
+`api/conversations/GetOrganizations` (which does take `{}`) and filter on the explicit
+`isLocal` flag. Passing the local organization — or the handles from the visits
+response, which include it — returns HTTP 500.
 
-Read the nonce the server sent (`mah_nonce app/communication-center`). Do not generate
-candidate nonce values — it is an anti-CSRF control.
+Response: `{conversations[], users, viewers, localSummary, externalSummaries,
+legacyXUnreadCount}`. Each conversation has `subject`, `previewText`, `messageType`,
+`hasAttachments`, `hasUrgentMsgs`, `organizationId` and `messages[]`
+→ `{author, body, deliveryInstantISO, isUnread, attachments, tasks}`.
+
+Do not try to satisfy the nonce by generating values — it is an anti-CSRF control;
+read the one the server sent (`mah_nonce`).
+
+`api/item-feed/FetchItemFeed` still needs parameters that have not been captured.

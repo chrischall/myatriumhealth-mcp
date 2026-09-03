@@ -174,6 +174,38 @@ export class MyAtriumHealthClient {
     );
   }
 
+  /**
+   * List Message Center conversations for a folder tag.
+   *
+   * This endpoint is fussier than the rest and every part was established by
+   * capturing the app's own request:
+   *  - it needs FIVE keys; omitting `searchQuery` or `PageNonce` fails,
+   *  - `PageNonce` is the CSP nonce of an `/app/*` page (see {@link pageNonce}),
+   *  - `externalLoadParams` must contain the NON-local organizations only.
+   *    Passing the local org (or organization handles taken from the visits
+   *    response, which include it) returns HTTP 500.
+   */
+  async listConversations(tag = 1): Promise<unknown> {
+    const [orgsRes, nonce] = await Promise.all([
+      this.api<{ organizations?: Record<string, { isLocal?: boolean }> }>(
+        'conversations/GetOrganizations',
+      ),
+      this.pageNonce(),
+    ]);
+    const load = { loadStartInstantISO: '', loadEndInstantISO: '', pagingInfo: 1 };
+    const externalLoadParams: Record<string, { communicationCenter: typeof load }> = {};
+    for (const [handle, org] of Object.entries(orgsRes.organizations ?? {})) {
+      if (org?.isLocal !== true) externalLoadParams[handle] = { communicationCenter: { ...load } };
+    }
+    return this.api('conversations/GetConversationList', {
+      tag,
+      localLoadParams: { ...load },
+      externalLoadParams,
+      searchQuery: '',
+      PageNonce: nonce,
+    });
+  }
+
   /** POST a legacy form-encoded endpoint, with the cache-buster Epic expects. */
   async legacy<T = unknown>(
     path: string,

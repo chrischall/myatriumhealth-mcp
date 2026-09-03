@@ -78,10 +78,12 @@ approved) · `3` bot wall · `4` upstream HTTP error.
 
 Data goes to stdout, pair codes and status to stderr — so `| jq` stays clean.
 
-## Known gap
+## Messages
 
-The message list (`api/conversations/GetConversationList`) is not yet reachable from
-the shell; it needs a page nonce plus organization handles that have not been pinned
-down. `references/endpoints.md` documents exactly what is known. Do not try to satisfy
-the nonce by generating values — it is an anti-CSRF control; read the one the server
-sent (`mah_nonce`).
+`mah_messages [folderTag]` reads the Message Center. It is the one endpoint that cannot
+be called with `{}`: it needs a five-key body whose `PageNonce` is the CSP nonce of an
+`/app/*` page, and whose `externalLoadParams` must list the **non-local** organizations
+only (filter `api/conversations/GetOrganizations` on the explicit `isLocal` flag —
+passing the local org returns HTTP 500). The helper handles all of that.
+
+`api/item-feed/FetchItemFeed` still needs parameters that have not been captured.

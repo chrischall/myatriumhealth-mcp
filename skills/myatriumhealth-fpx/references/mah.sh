@@ -73,3 +73,22 @@ mah_legacy() {
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d ''
 }
+
+# mah_messages [folderTag]  — Message Center conversations. Default folder 1 (inbox).
+# Needs FIVE body keys; the fussy parts are the page CSP nonce and the fact that
+# externalLoadParams must list the NON-local organizations only (including the
+# local one, or handles taken from the visits response, returns HTTP 500).
+mah_messages() {
+  local tag="${1:-1}" nonce orgs
+  nonce="$(mah_nonce app/communication-center)" || return 2
+  orgs="$(mah_api conversations/GetOrganizations)" || return 2
+  printf %s "$orgs" | python3 -c '
+import json,sys
+tag,nonce = sys.argv[1], sys.argv[2]
+orgs = json.load(sys.stdin).get("organizations") or {}
+load = {"loadStartInstantISO":"","loadEndInstantISO":"","pagingInfo":1}
+ext  = {h:{"communicationCenter":dict(load)} for h,o in orgs.items() if not o.get("isLocal")}
+print(json.dumps({"tag":int(tag),"localLoadParams":load,"externalLoadParams":ext,
+                  "searchQuery":"","PageNonce":nonce}))' "$tag" "$nonce" \
+    | { read -r body; mah_api conversations/GetConversationList "$body"; }
+}
