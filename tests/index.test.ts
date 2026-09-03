@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { MyAtriumHealthClient } from '../src/client.js';
 import type { MahTransport } from '../src/transport.js';
+import { MyAtriumHealthAuth } from '../src/auth.js';
 import { registerAccountTools } from '../src/tools/account.js';
+import { registerAuthTools } from '../src/tools/auth.js';
 import { registerBillingTools } from '../src/tools/billing.js';
 import { registerRecordTools } from '../src/tools/records.js';
 import { registerResultTools } from '../src/tools/results.js';
@@ -29,6 +31,13 @@ function registeredToolNames(): string[] {
   registerVisitTools(server, client);
   registerAccountTools(server, client);
   registerBillingTools(server, client);
+  // Auth tools are conditional at runtime (credentials configured) but must be
+  // in the manifest, or an mcpb host would never show the sign-in flow.
+  const auth = new MyAtriumHealthAuth({
+    credentials: () => ({ username: 'u', password: 'p' }),
+    persistence: { load: () => null, save: () => {} },
+  });
+  registerAuthTools(server, auth);
   return names;
 }
 
@@ -41,6 +50,7 @@ const manifestTools = (
 describe('tool roster', () => {
   it('registers the expected tools', () => {
     expect(registeredToolNames().sort()).toEqual([
+      'mah_auth_status',
       'mah_get_health_summary',
       'mah_get_menu',
       'mah_list_allergies',
@@ -56,6 +66,9 @@ describe('tool roster', () => {
       'mah_list_past_visits',
       'mah_list_test_results',
       'mah_list_upcoming_visits',
+      'mah_send_verification_code',
+      'mah_sign_in',
+      'mah_verify_code',
     ]);
   });
 

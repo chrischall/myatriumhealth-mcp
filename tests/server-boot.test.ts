@@ -25,7 +25,11 @@ beforeAll(() => {
 }, 120_000);
 
 /** Spawn the stdio server, run initialize + tools/list, resolve the tool names. */
-function listToolsViaStdio(entry: string, cwd: string): Promise<string[]> {
+function listToolsViaStdio(
+  entry: string,
+  cwd: string,
+  extraEnv: Record<string, string> = {},
+): Promise<string[]> {
   return new Promise((resolve, reject) => {
     const child = spawn('node', [entry], {
       cwd,
@@ -35,6 +39,7 @@ function listToolsViaStdio(entry: string, cwd: string): Promise<string[]> {
         // it can never disturb — or be disturbed by — a real bridge running on
         // this machine.
         MAH_WS_PORT: '39731',
+        ...extraEnv,
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -112,5 +117,23 @@ describe('server boot (built artifact)', () => {
     // up cleanly in a bare environment rather than demanding configuration.
     const tools = await listToolsViaStdio(BUNDLE, ROOT);
     expect(tools.length).toBeGreaterThanOrEqual(MIN_TOOLS);
+  }, 30_000);
+
+  // index.ts now branches on credentials. Bridge-less mode must boot WITHOUT
+  // binding the concentrator port at all, and must expose the sign-in tools —
+  // a host that spawns it with credentials set should see the MFA flow.
+  it('boots bridge-less when credentials are configured, and offers sign-in tools', async () => {
+    const tools = await listToolsViaStdio(BUNDLE, ROOT, {
+      MAH_USERNAME: 'boot-test-user',
+      MAH_PASSWORD: 'boot-test-pass',
+      MAH_DEVICE_FILE: join(tmpdir(), `mah-boot-${Date.now()}.json`),
+    });
+    expect(tools).toContain('mah_sign_in');
+    expect(tools).toContain('mah_send_verification_code');
+    expect(tools).toContain('mah_verify_code');
+    // A healthcheck must exist in BOTH modes — it is the tool people reach for
+    // when something is broken. Bridge-less registers the CREDENTIAL variant
+    // (the bridge is not on the request path there), under the same name.
+    expect(tools).toContain('mah_healthcheck');
   }, 30_000);
 });
