@@ -22,10 +22,24 @@ mah_signed_in() {
     echo "bridge returned nothing — open https://my.atriumhealth.org/ in Chrome (fpx relays through that tab)" >&2
     return 2
   fi
-  case "$page" in
-    *"<title>MyAtriumHealth - Login Page"*) return 1 ;;
-    *) return 0 ;;
+  # Also catch a two-factor / verification step-up, not just the login page.
+  # This deployment has 2FA enabled, and an interstitial that is not the login
+  # page would otherwise read as "signed in" and produce confusing failures
+  # downstream. The exact step-up markup is unobserved, so the match is broad.
+  # Match on the TITLE, never the body: every signed-in page links to two-factor
+  # setup under Settings, so a body-wide *twoFactor* match reports "signed out"
+  # for a perfectly good session (verified against the real Home page).
+  local title
+  title="$(printf %s "$page" | sed -n 's/.*<title>\([^<]*\)<\/title>.*/\1/p' | head -1)"
+  # Keep these in step with isAuthWall() in src/client.ts. Matching two-factor
+  # in the TITLE is safe; matching it in the BODY is not (see above).
+  case "$title" in
+    *"Login Page"*|*Verify*|*Verification*|*[Tt]wo-[Ff]actor*|*[Tt]wo\ [Ff]actor*|*twoFactor*) return 1 ;;
   esac
+  case "$page" in
+    *'name="verificationCode"'*) return 1 ;;
+  esac
+  return 0
 }
 
 # The 172-char ASP.NET antiforgery token from any signed-in page. Cache it:

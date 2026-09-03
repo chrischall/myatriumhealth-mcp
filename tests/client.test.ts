@@ -162,3 +162,50 @@ describe('legacy form bodies', () => {
     expect(call.path).not.toContain('isStandAlone');
   });
 });
+
+describe('authentication interstitials', () => {
+  const wrap = (title: string, body = ''): string =>
+    `<html><head><title>${title}</title></head><body>${body}</body></html>`;
+
+  it('treats a two-factor verification page as needing sign-in, not a bad endpoint', async () => {
+    const t = new FakeTransport(() =>
+      ok(wrap('MyAtriumHealth - Verify Your Identity',
+        '<form id="twoFactorForm"><input name="verificationCode" /></form>')));
+    const c = new MyAtriumHealthClient({ transport: t });
+    await expect(c.page('Home')).rejects.toThrow(/sign in|verif/i);
+  });
+
+  it('still reports a genuine non-JSON error page as such', async () => {
+    const t = new FakeTransport((i) =>
+      i.path.startsWith('api/') ? ok(wrap('MyAtriumHealth - Oops!')) : ok(signedInPage()));
+    const c = new MyAtriumHealthClient({ transport: t });
+    await expect(c.api('conversations/GetOrganizations')).rejects.toThrow(/Oops/i);
+  });
+
+  // The generic HTML fallback must not assert a single cause: an auth
+  // interstitial and a missing parameter both surface as non-JSON HTML.
+  it('does not blame parameters alone when HTML comes back', async () => {
+    const t = new FakeTransport((i) =>
+      i.path.startsWith('api/') ? ok(wrap('MyAtriumHealth - Something')) : ok(signedInPage()));
+    const c = new MyAtriumHealthClient({ transport: t });
+    await expect(c.api('x/Y')).rejects.toMatchObject({
+      hint: expect.stringMatching(/sign|verif|browser/i),
+    });
+  });
+});
+
+describe('auth-wall detection must not false-positive', () => {
+  // Regression: a body-wide `twoFactor` match reports "not signed in" for EVERY
+  // request, because every signed-in page links to two-factor setup under
+  // Settings. Confirmed against the real portal Home page.
+  it('accepts a signed-in page that links to two-factor settings', async () => {
+    const page =
+      `<html><head><title>MyAtriumHealth - Home</title></head><body>` +
+      `<a href="/Settings/TwoFactor">Enable two-factor authentication</a>` +
+      `<span>twoFactorEnabled</span>` +
+      `<input name="__RequestVerificationToken" value="${TOKEN}" /></body></html>`;
+    const t = new FakeTransport((i) => (i.path.startsWith('api/') ? ok('{"ok":true}') : ok(page)));
+    const c = new MyAtriumHealthClient({ transport: t });
+    await expect(c.api('allergies/LoadAllergies')).resolves.toEqual({ ok: true });
+  });
+});

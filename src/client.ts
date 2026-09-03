@@ -23,10 +23,31 @@ const NONCE_RE =
 /**
  * MyChart answers an EXPIRED session with HTTP 200 whose body is the login
  * page — never a 401 — and the JSON endpoints then return `{}`. Detecting this
- * by status code would report success forever, so detect it by title.
+ * by status code would report success forever, so detect it by content.
+ *
+ * This deployment also has two-factor authentication enabled (the shipped
+ * resources include EnableTwoFactorAuthentication / ContinueTwoFactorFormButton),
+ * so a session can in principle be interrupted by a verification step-up rather
+ * than a plain login page. The MCP never authenticates — the human completes
+ * MFA in the browser — but it must not MISREPORT such an interstitial as a
+ * broken endpoint, which is what a login-page-only check does.
+ *
+ * The exact step-up markup has NOT been observed: triggering a real MFA
+ * challenge to capture it would mean repeated auth attempts against a live
+ * health account, which is how these systems escalate. The markers below are
+ * therefore deliberately broad, and the generic HTML fallback in `parse` names
+ * authentication as a possible cause regardless.
  */
-function isLoginPage(html: string): boolean {
-  return /<title>[^<]*Login Page/i.test(html);
+function isAuthWall(html: string): boolean {
+  const title = /<title>([^<]*)<\/title>/i.exec(html)?.[1] ?? '';
+  if (/Login Page/i.test(title)) return true;
+  // Title-scoped on purpose. Matching `twoFactor` anywhere in the BODY looks
+  // right and is catastrophically wrong: every signed-in page links to
+  // two-factor setup under Settings, so a body-wide match reports "not signed
+  // in" for every request. Verified against a real signed-in Home page, which
+  // contains both `twoFactor` and `two-factor` while being perfectly valid.
+  if (/verify|verification|two[- ]?factor/i.test(title)) return true;
+  return /name=["']verificationCode["']/i.test(html);
 }
 
 /**
@@ -50,11 +71,12 @@ function emptyBody(what: string): McpToolError {
 
 function notSignedIn(): McpToolError {
   return new McpToolError(
-    'Not signed in to MyAtriumHealth — the portal returned its login page.',
+    'Not signed in to MyAtriumHealth — the portal returned a sign-in or verification page.',
     {
       hint:
-        'Open https://my.atriumhealth.org/ in Chrome and sign in, then retry. ' +
-        'MyChart sessions are short-lived, so this recurs between uses.',
+        'Open https://my.atriumhealth.org/ in Chrome and sign in, completing any ' +
+        'verification prompt, then retry. MyChart sessions are short-lived, so this ' +
+        'recurs between uses.',
     },
   );
 }
@@ -88,7 +110,7 @@ export class MyAtriumHealthClient {
       path: path.replace(/^\/+/, ''),
     });
     if (res.body.trim() === '') throw emptyBody(path);
-    if (isLoginPage(res.body)) throw notSignedIn();
+    if (isAuthWall(res.body)) throw notSignedIn();
     return res.body;
   }
 
@@ -137,14 +159,19 @@ export class MyAtriumHealthClient {
     const trimmed = body.trimStart();
     if (trimmed === '') throw emptyBody(endpoint);
     if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
-      if (isLoginPage(body)) throw notSignedIn();
+      if (isAuthWall(body)) throw notSignedIn();
       const oops = /<title>([^<]*)</.exec(body)?.[1]?.trim();
       throw new McpToolError(
         `${endpoint} did not return JSON${oops ? ` — the portal returned "${oops}"` : ''}.`,
         {
+          // Two very different causes surface identically as non-JSON HTML: a
+          // missing parameter, and an authentication or verification
+          // interstitial. Naming only the first sends people to debug the
+          // endpoint when the fix is in their browser.
           hint:
-            'This endpoint usually needs parameters that have not been captured. ' +
-            'See docs/MYATRIUMHEALTH-API.md.',
+            'Either the endpoint needs parameters that have not been captured ' +
+            '(see docs/MYATRIUMHEALTH-API.md), or the portal is showing a sign-in or ' +
+            'verification page — open https://my.atriumhealth.org/ in Chrome and check.',
         },
       );
     }
