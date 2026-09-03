@@ -29,6 +29,25 @@ function isLoginPage(html: string): boolean {
   return /<title>[^<]*Login Page/i.test(html);
 }
 
+/**
+ * An empty body means the bridge relayed nothing — almost always no signed-in
+ * my.atriumhealth.org tab is open, since fetchproxy runs the request INSIDE a
+ * tab on the target host. Reporting this as "did not return JSON" points people
+ * at the endpoint when the fix is in their browser. Worse, a naive
+ * "is this the login page?" check treats an empty body as signed-in, because
+ * the login marker is absent from empty text as surely as from a real page.
+ */
+function emptyBody(what: string): McpToolError {
+  return new McpToolError(
+    `MyAtriumHealth returned an empty response for ${what} — the browser bridge relayed nothing.`,
+    {
+      hint:
+        'Open https://my.atriumhealth.org/ in a Chrome tab and sign in, then retry. ' +
+        'fetchproxy issues requests from inside that tab, so it needs one open on the site.',
+    },
+  );
+}
+
 function notSignedIn(): McpToolError {
   return new McpToolError(
     'Not signed in to MyAtriumHealth — the portal returned its login page.',
@@ -68,6 +87,7 @@ export class MyAtriumHealthClient {
       method: 'GET',
       path: path.replace(/^\/+/, ''),
     });
+    if (res.body.trim() === '') throw emptyBody(path);
     if (isLoginPage(res.body)) throw notSignedIn();
     return res.body;
   }
@@ -115,6 +135,7 @@ export class MyAtriumHealthClient {
   /** Parse a JSON response, turning an HTML error page into a real error. */
   private parse<T>(body: string, endpoint: string): T {
     const trimmed = body.trimStart();
+    if (trimmed === '') throw emptyBody(endpoint);
     if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
       if (isLoginPage(body)) throw notSignedIn();
       const oops = /<title>([^<]*)</.exec(body)?.[1]?.trim();
@@ -153,10 +174,43 @@ export class MyAtriumHealthClient {
     );
   }
 
+  /**
+   * List Message Center conversations for a folder tag.
+   *
+   * This endpoint is fussier than the rest and every part was established by
+   * capturing the app's own request:
+   *  - it needs FIVE keys; omitting `searchQuery` or `PageNonce` fails,
+   *  - `PageNonce` is the CSP nonce of an `/app/*` page (see {@link pageNonce}),
+   *  - `externalLoadParams` must contain the NON-local organizations only.
+   *    Passing the local org (or organization handles taken from the visits
+   *    response, which include it) returns HTTP 500.
+   */
+  async listConversations(tag = 1): Promise<unknown> {
+    const [orgsRes, nonce] = await Promise.all([
+      this.api<{ organizations?: Record<string, { isLocal?: boolean }> }>(
+        'conversations/GetOrganizations',
+      ),
+      this.pageNonce(),
+    ]);
+    const load = { loadStartInstantISO: '', loadEndInstantISO: '', pagingInfo: 1 };
+    const externalLoadParams: Record<string, { communicationCenter: typeof load }> = {};
+    for (const [handle, org] of Object.entries(orgsRes.organizations ?? {})) {
+      if (org?.isLocal !== true) externalLoadParams[handle] = { communicationCenter: { ...load } };
+    }
+    return this.api('conversations/GetConversationList', {
+      tag,
+      localLoadParams: { ...load },
+      externalLoadParams,
+      searchQuery: '',
+      PageNonce: nonce,
+    });
+  }
+
   /** POST a legacy form-encoded endpoint, with the cache-buster Epic expects. */
   async legacy<T = unknown>(
     path: string,
     query: Record<string, string> = {},
+    form: Record<string, string> = {},
   ): Promise<T> {
     const token = await this.getToken();
     const qs = new URLSearchParams({
@@ -172,7 +226,7 @@ export class MyAtriumHealthClient {
           'X-Requested-With': 'XMLHttpRequest',
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: '',
+        body: new URLSearchParams(form).toString(),
       },
       path,
     );

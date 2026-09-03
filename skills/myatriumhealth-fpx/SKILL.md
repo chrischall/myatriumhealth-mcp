@@ -64,6 +64,13 @@ the JSON endpoints then quietly return `{}`. A status check would report success
 forever. `mah_signed_in` tests the body — use it when results come back empty. Sessions
 are short-lived; expect to sign in again between uses.
 
+There is a second, sneakier false green: an **empty** body. fetchproxy issues requests
+from *inside* a tab on the target host, so with no my.atriumhealth.org tab open it
+relays nothing — and empty text contains no login marker, so a naive "is this the login
+page?" check reports SIGNED IN for a response that never happened. `mah_signed_in`
+checks emptiness first and returns `2` with the real remedy (exit `1` means signed out,
+`0` means signed in).
+
 ## Exit codes (fpx)
 
 `0` ok · `1` usage · `2` bridge unavailable (extension not connected, or pairing not
@@ -71,10 +78,12 @@ approved) · `3` bot wall · `4` upstream HTTP error.
 
 Data goes to stdout, pair codes and status to stderr — so `| jq` stays clean.
 
-## Known gap
+## Messages
 
-The message list (`api/conversations/GetConversationList`) is not yet reachable from
-the shell; it needs a page nonce plus organization handles that have not been pinned
-down. `references/endpoints.md` documents exactly what is known. Do not try to satisfy
-the nonce by generating values — it is an anti-CSRF control; read the one the server
-sent (`mah_nonce`).
+`mah_messages [folderTag]` reads the Message Center. It is the one endpoint that cannot
+be called with `{}`: it needs a five-key body whose `PageNonce` is the CSP nonce of an
+`/app/*` page, and whose `externalLoadParams` must list the **non-local** organizations
+only (filter `api/conversations/GetOrganizations` on the explicit `isLocal` flag —
+passing the local org returns HTTP 500). The helper handles all of that.
+
+`api/item-feed/FetchItemFeed` still needs parameters that have not been captured.

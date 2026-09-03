@@ -57,6 +57,8 @@ All read-only — this surface exposes no writes.
 | `mah_list_goals` | Patient goals |
 | `mah_get_health_summary` | Health-summary header and action plans |
 | `mah_list_message_folders` | Message Center folders with unread counts |
+| `mah_list_messages` | Message Center conversations for a folder |
+| `mah_list_insurance` | Insurance coverages on file |
 | `mah_get_menu` | Which portal features this account exposes |
 | `mah_healthcheck` | Bridge health, and whether the portal session is signed in |
 
@@ -78,11 +80,15 @@ in again between uses.
 shell with the `fpx` CLI — no server to run. Its `references/endpoints.md` carries
 live-verified `jq` recipes for every endpoint here.
 
-## Known gap
+## Messages
 
-The message list (`api/conversations/GetConversationList`) is not yet reachable: it
-needs a page nonce plus organization handles that have not been pinned down. See
-`docs/MYATRIUMHEALTH-API.md`.
+`mah_list_messages` is the one endpoint that cannot be called with an empty body. It
+needs a five-key request whose `PageNonce` is the CSP nonce of an `/app/*` page, and
+whose `externalLoadParams` lists the **non-local** organizations only — passing the
+local organization returns HTTP 500. The client assembles this from
+`conversations/GetOrganizations` and its explicit `isLocal` flag.
+
+`api/item-feed/FetchItemFeed` still needs parameters that have not been captured.
 
 ## Development
 
