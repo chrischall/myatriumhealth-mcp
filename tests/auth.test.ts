@@ -50,7 +50,12 @@ describe('server-side login', () => {
     expect(form.get('__RequestVerificationToken')).toBe(TOKEN);
   });
 
-  it('sends a stored DeviceId so a trusted device skips the challenge', async () => {
+  // Behaviour deliberately inverted after measurement: sending this portal's
+  // RememberDeviceId does NOT skip verification, and it breaks the challenge —
+  // the SecondaryValidation page then renders without its templateContext, so
+  // the antiforgery token cannot be read and SendCode 500s. Session continuity
+  // comes from the persisted cookie jar instead.
+  it('does NOT send the device token on login, because it poisons the challenge', async () => {
     const store = memoryStore();
     store.save({ deviceId: 'DEV-123', username: USER } as never);
     const { calls, fetchImpl } = harness((url) =>
@@ -60,7 +65,7 @@ describe('server-side login', () => {
     const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: store });
     await auth.login().catch(() => {});
     const form = new URLSearchParams(calls.find((c) => c.url.includes('DoLogin'))!.body);
-    expect(form.get('DeviceId')).toBe('DEV-123');
+    expect(form.get('DeviceId')).toBeNull();
   });
 
   it('raises a typed MfaRequiredError when redirected to SecondaryValidation', async () => {

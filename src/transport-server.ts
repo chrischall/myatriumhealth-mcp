@@ -21,6 +21,12 @@ export class ServerTransport implements MahTransport {
     if (this.loggedIn) return;
     this.inFlight ??= (async () => {
       try {
+        // A persisted jar may already be a live session — that is the whole
+        // point of keeping it, and it avoids both a login and a verification.
+        if (await this.auth.isSignedIn()) {
+          this.loggedIn = true;
+          return;
+        }
         await this.auth.login();
         this.loggedIn = true;
       } finally {

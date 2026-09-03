@@ -25,6 +25,15 @@ export interface DeviceRecord extends Record<string, unknown> {
   deviceId: string;
   username: string;
   savedAt: number;
+  /**
+   * The cookie jar, persisted alongside the device token.
+   *
+   * A browser is not re-challenged partly because it KEEPS its cookies; a fresh
+   * Node process starts empty and looks like a brand-new client every time.
+   * Persisting the jar is what lets a restart resume the existing session
+   * instead of logging in again.
+   */
+  cookies?: [string, string][];
 }
 
 export interface StateLike {
@@ -138,11 +147,39 @@ export class MyAtriumHealthAuth {
   private challengeToken: string | undefined;
 
   constructor(opts: AuthOptions) {
+    // Restore a previous session's cookies before anything else, so the first
+    // request can discover it is already signed in.
     // A receiver-safe wrapper, never the bare global: older undici throws
     // `Illegal invocation` when fetch is called with a non-global `this`.
     this.doFetch = opts.fetchImpl ?? ((input, init) => fetch(input, init));
     this.credentials = opts.credentials;
     this.store = opts.persistence;
+    const rec = this.store.load();
+    if (rec?.username === opts.credentials().username) {
+      for (const [k, v] of rec.cookies ?? []) this.jar.set(k, v);
+    }
+  }
+
+  /** Persist the jar (and any device token) so a restart can resume. */
+  private persist(): void {
+    const { username } = this.credentials();
+    const prev = this.store.load();
+    this.store.save({
+      deviceId: prev?.username === username ? (prev.deviceId ?? '') : '',
+      username,
+      savedAt: Date.now(),
+      cookies: [...this.jar],
+    });
+  }
+
+  /** Is the CURRENT jar already a signed-in session? Costs one cheap GET. */
+  async isSignedIn(): Promise<boolean> {
+    if (this.jar.size === 0) return false;
+    const { res, body } = await this.request('Home');
+    const loc = res.headers.get('location') ?? '';
+    if (/SecondaryValidation/i.test(loc)) return false;
+    if (/Authentication\/Login/i.test(loc)) return false;
+    return !/<title>[^<]*Login Page/i.test(body);
   }
 
   /** Redact the live password out of any text before it can surface. */
@@ -197,8 +234,12 @@ export class MyAtriumHealthAuth {
    * and `verifyCode` both need its `workflow`, without which the portal
    * refuses the request with a bare `Success:false`.
    */
-  async challengeContext(): Promise<ChallengeContext | null> {
-    if (this.context !== null) return this.context;
+  async challengeContext(force = false): Promise<ChallengeContext | null> {
+    // The antiforgery token is single-use-ish: an intervening POST (a failed
+    // DeviceCheck, say) invalidates it, and reusing a stale one makes the
+    // handler 500 — which surfaces as a bare Success:false and reads like
+    // "this channel is not configured". Always refresh before a challenge POST.
+    if (!force && this.context !== null) return this.context;
     const { body } = await this.request('Authentication/SecondaryValidation?ranDeviceCheck=1');
     this.context = parseChallengeContext(body);
     this.challengeToken = /name="__RequestVerificationToken"[^>]*value="([^"]+)"/.exec(body)?.[1];
@@ -246,7 +287,14 @@ export class MyAtriumHealthAuth {
         Credentials: { LoginIdentifier: b64(username), Password: b64(password) },
       }),
     );
-    if (device !== undefined) form.set('DeviceId', device);
+    // DELIBERATELY NOT SENT. The RememberDeviceId this portal returns is not a
+    // device-tracking id it will accept back: including it does not skip
+    // verification AND it breaks the challenge — the SecondaryValidation page
+    // then renders without its templateContext, so the antiforgery token cannot
+    // be read and SendCode 500s. Measured both ways, repeatedly. The account
+    // reports RememberMeSettings.EnrollDeviceTracking:False, which fits.
+    // Session continuity comes from the persisted cookie jar instead.
+    void device;
 
     const { res, body } = await this.request('Authentication/Login/DoLogin', {
       method: 'POST',
@@ -278,17 +326,13 @@ export class MyAtriumHealthAuth {
     const landing = await this.request('Home');
     const nextLocation = landing.res.headers.get('location') ?? '';
     if (/SecondaryValidation/i.test(nextLocation) || /SecondaryValidation/i.test(landing.body)) {
-      // Mirror the browser: the challenge page's DeviceCheckController POSTs the
-      // stored DeviceId to SecondaryValidation/DeviceCheck and only then reloads.
-      // Sending DeviceId on the login POST alone does NOT establish device trust —
-      // this call is what redeems it.
-      if (device !== undefined && (await this.redeemDevice(device))) {
-        const retry = await this.request('Home');
-        const retryLocation = retry.res.headers.get('location') ?? '';
-        if (!/SecondaryValidation/i.test(retryLocation) && !/SecondaryValidation/i.test(retry.body)) {
-          return { signedIn: true, usedDeviceId: true };
-        }
-      }
+      // NOTE: do NOT post SecondaryValidation/DeviceCheck here. Replicating the
+      // browser's device-check call does not redeem trust for a server-side
+      // session, and it POISONS the challenge: afterwards the page stops
+      // rendering its templateContext, so the antiforgery token cannot be read
+      // and SendCode 500s. Measured directly — with a stored device token the
+      // context failed to parse and SendCode returned 500; without one it
+      // parsed and returned Success:true.
       const ctx = await this.challengeContext();
       throw new MfaRequiredError(ctx?.channels ?? ['sms', 'email'], {
         ...(ctx?.displayEmail !== undefined ? { email: ctx.displayEmail } : {}),
@@ -296,29 +340,6 @@ export class MyAtriumHealthAuth {
       });
     }
     return { signedIn: true, usedDeviceId: device !== undefined };
-  }
-
-  /**
-   * Redeem a stored device-trust token against the challenge. Returns whether
-   * the portal accepted it; a rejection is normal (tokens expire) and simply
-   * means the human must verify again.
-   */
-  private async redeemDevice(deviceId: string): Promise<boolean> {
-    await this.challengeContext();
-    const form = new URLSearchParams();
-    form.set('DeviceId', deviceId);
-    if (this.challengeToken !== undefined) form.set('__RequestVerificationToken', this.challengeToken);
-    try {
-      const { body } = await this.request('Authentication/SecondaryValidation/DeviceCheck', {
-        method: 'POST',
-        headers: this.challengeHeaders(),
-        body: form.toString(),
-      });
-      const parsed = JSON.parse(body) as { Success?: boolean };
-      return parsed.Success === true;
-    } catch {
-      return false;
-    }
   }
 
   /** Ask the portal to send the human a verification code. */
@@ -329,7 +350,7 @@ export class MyAtriumHealthAuth {
         hint: 'Read the current code from your authenticator app and pass it to mah_verify_code.',
       });
     }
-    const ctx = await this.challengeContext();
+    const ctx = await this.challengeContext(true);
     const form = new URLSearchParams();
     form.set(field, 'true');
     form.set('resendCode', String(resend));
@@ -361,12 +382,11 @@ export class MyAtriumHealthAuth {
    * `RememberDeviceId`, which is persisted so later logins skip the challenge.
    */
   async verifyCode(code: string, rememberDevice = true): Promise<{ remembered: boolean }> {
-    const ctx0 = await this.challengeContext();
-    void ctx0;
+    await this.challengeContext(true);
     const form = new URLSearchParams();
     form.set('TwoFactorCode', code);
     form.set('RememberMe', rememberDevice ? 'checked' : '');
-    const ctx = await this.challengeContext();
+    const ctx = this.context;
     form.set(
       'EnrollDeviceTrackingOnRemember',
       String(rememberDevice && (ctx?.enrollDeviceTracking ?? false)),
@@ -395,11 +415,15 @@ export class MyAtriumHealthAuth {
     }
 
     const id = parsed.RememberDeviceId;
-    if (rememberDevice && typeof id === 'string' && id !== '') {
-      const { username } = this.credentials();
-      this.store.save({ deviceId: id, username, savedAt: Date.now() });
-      return { remembered: true };
-    }
-    return { remembered: false };
+    const { username } = this.credentials();
+    // Persist the jar either way: the session established by verifying is worth
+    // keeping even if the device token turns out not to be honoured.
+    this.store.save({
+      deviceId: rememberDevice && typeof id === 'string' ? id : '',
+      username,
+      savedAt: Date.now(),
+      cookies: [...this.jar],
+    });
+    return { remembered: rememberDevice && typeof id === 'string' && id !== '' };
   }
 }

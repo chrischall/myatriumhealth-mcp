@@ -20,12 +20,17 @@ hosting possible. Verification is **human-in-the-loop**: the portal challenges,
 **you**, and `mah_verify_code` submits only what you provide. Nothing here bypasses the
 second factor.
 
-> **Known limitation.** The device-trust token the portal returns does **not** currently
-> skip verification: `SecondaryValidation/DeviceCheck` answers `200 {}` rather than
-> `{Success:true}` and the session stays challenged. This account reports
-> `RememberMeSettings.EnrollDeviceTracking: False`, which is the likely cause. So
-> bridge-less needs a code per fresh process today — fine interactively, not yet
-> unattended.
+**How the session persists.** After one verification the cookie jar is stored (0600,
+bound to the account) and reused, so restarts resume the existing session rather than
+signing in again — no browser and no further codes until the session lapses.
+
+> **What does NOT work, measured rather than assumed:** the `RememberDeviceId` this
+> portal returns is *not* a device-tracking id it will accept back. Sending it neither
+> skips verification nor is harmless — it breaks the challenge, leaving the
+> SecondaryValidation page without its `templateContext` so the antiforgery token
+> cannot be read and `SendCode` returns 500. The account reports
+> `RememberMeSettings.EnrollDeviceTracking: False`, which fits. The token is therefore
+> stored but deliberately never sent.
 
 The bridge mode's real virtue is that it holds **no credentials at all**. Prefer it
 unless you specifically need bridge-less.

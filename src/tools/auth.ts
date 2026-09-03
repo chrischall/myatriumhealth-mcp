@@ -21,11 +21,13 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
     },
     async () => {
       const hasDevice = auth.deviceId() !== undefined;
+      const resumable = await auth.isSignedIn();
       return jsonResult({
+        sessionResumable: resumable,
         trustedDeviceStored: hasDevice,
-        nextStep: hasDevice
-          ? 'Sign-in should proceed without a verification code.'
-          : 'Call mah_sign_in; expect a verification code to be required once.',
+        nextStep: resumable
+          ? 'A stored session is still live; no sign-in needed.'
+          : 'Call mah_sign_in; a verification code may be required.',
       });
     },
   );
