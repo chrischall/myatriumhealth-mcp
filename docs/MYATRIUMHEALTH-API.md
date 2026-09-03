@@ -42,6 +42,11 @@ JSON endpoints then return `{}` / `""` rather than an error. Detect by checking 
 fetched HTML for `<title>MyAtriumHealth - Login Page</title>` — never by status code.
 Sessions are short-lived; assume re-login between uses.
 
+An **empty** body is a different failure with the same surface symptom: fetchproxy runs
+requests inside a tab on the target host, so with no my.atriumhealth.org tab open it
+relays nothing. Empty text contains no login marker, so a login-page check alone reports
+"signed in" for a response that never happened — test for emptiness FIRST.
+
 ### PageNonce (needed by a minority of endpoints)
 
 From the shipped bundle (`bundles/core-1-post`):

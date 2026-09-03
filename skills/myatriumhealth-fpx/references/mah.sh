@@ -8,18 +8,34 @@ MAH_BASE="https://my.atriumhealth.org/myatriumhealth"
 # Fetch a page through the signed-in tab. $1 = path under /myatriumhealth.
 mah_page() { fpx get "$MAH_BASE/${1#/}" -p "$MAH_PROFILE"; }
 
-# True (0) when the session is alive. MyChart answers an EXPIRED session with
-# HTTP 200 whose body is the login page, so status codes cannot be trusted here.
+# True (0) when the session is alive. Two ways this lies if written naively:
+#   1. MyChart answers an EXPIRED session with HTTP 200 whose body is the login
+#      page, so the status code cannot be trusted.
+#   2. An EMPTY body (no signed-in tab open for the bridge to relay through)
+#      contains no login marker either — so a bare `grep -q login || return 0`
+#      reports SIGNED IN for a response that never happened.
+# Check for emptiness first, then for the login page.
 mah_signed_in() {
-  mah_page "Home" 2>/dev/null | grep -q '<title>MyAtriumHealth - Login Page' && return 1
-  return 0
+  local page
+  page="$(mah_page "Home" 2>/dev/null)"
+  if [ -z "$page" ]; then
+    echo "bridge returned nothing — open https://my.atriumhealth.org/ in Chrome (fpx relays through that tab)" >&2
+    return 2
+  fi
+  case "$page" in
+    *"<title>MyAtriumHealth - Login Page"*) return 1 ;;
+    *) return 0 ;;
+  esac
 }
 
 # The 172-char ASP.NET antiforgery token from any signed-in page. Cache it:
 #   export MAH_TOKEN="$(mah_token)"
 mah_token() {
   { [ -n "$MAH_TOKEN" ] && printf %s "$MAH_TOKEN" && return 0; } 2>/dev/null
-  mah_page "Home" 2>/dev/null \
+  local page
+  page="$(mah_page "Home" 2>/dev/null)"
+  [ -n "$page" ] || { echo "bridge returned nothing — is a signed-in my.atriumhealth.org tab open?" >&2; return 2; }
+  printf %s "$page" \
     | perl -ne 'if (/name="__RequestVerificationToken"[^>]*value="([^"]+)"/) { print $1; exit }'
 }
 

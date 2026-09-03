@@ -29,6 +29,25 @@ function isLoginPage(html: string): boolean {
   return /<title>[^<]*Login Page/i.test(html);
 }
 
+/**
+ * An empty body means the bridge relayed nothing — almost always no signed-in
+ * my.atriumhealth.org tab is open, since fetchproxy runs the request INSIDE a
+ * tab on the target host. Reporting this as "did not return JSON" points people
+ * at the endpoint when the fix is in their browser. Worse, a naive
+ * "is this the login page?" check treats an empty body as signed-in, because
+ * the login marker is absent from empty text as surely as from a real page.
+ */
+function emptyBody(what: string): McpToolError {
+  return new McpToolError(
+    `MyAtriumHealth returned an empty response for ${what} — the browser bridge relayed nothing.`,
+    {
+      hint:
+        'Open https://my.atriumhealth.org/ in a Chrome tab and sign in, then retry. ' +
+        'fetchproxy issues requests from inside that tab, so it needs one open on the site.',
+    },
+  );
+}
+
 function notSignedIn(): McpToolError {
   return new McpToolError(
     'Not signed in to MyAtriumHealth — the portal returned its login page.',
@@ -68,6 +87,7 @@ export class MyAtriumHealthClient {
       method: 'GET',
       path: path.replace(/^\/+/, ''),
     });
+    if (res.body.trim() === '') throw emptyBody(path);
     if (isLoginPage(res.body)) throw notSignedIn();
     return res.body;
   }
@@ -115,6 +135,7 @@ export class MyAtriumHealthClient {
   /** Parse a JSON response, turning an HTML error page into a real error. */
   private parse<T>(body: string, endpoint: string): T {
     const trimmed = body.trimStart();
+    if (trimmed === '') throw emptyBody(endpoint);
     if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
       if (isLoginPage(body)) throw notSignedIn();
       const oops = /<title>([^<]*)</.exec(body)?.[1]?.trim();

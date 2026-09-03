@@ -59,6 +59,22 @@ describe('MyAtriumHealthClient', () => {
     expect(t.calls.every((x) => x.headers?.__RequestVerificationToken !== 'b'.repeat(172))).toBe(true);
   });
 
+
+  // An empty body means the bridge relayed nothing (no signed-in tab open),
+  // NOT that the portal answered. Reporting that as a generic "did not return
+  // JSON" sends people to look at the endpoint instead of their browser.
+  it('names the bridge when the response body is empty', async () => {
+    const t = new FakeTransport(() => ok(''));
+    const c = new MyAtriumHealthClient({ transport: t });
+    await expect(c.api('allergies/LoadAllergies')).rejects.toThrow(/empty|no signed-in tab|bridge/i);
+  });
+
+  it('does not mistake an empty page for a signed-in one', async () => {
+    const t = new FakeTransport(() => ok(''));
+    const c = new MyAtriumHealthClient({ transport: t });
+    await expect(c.page('Home')).rejects.toThrow(/empty|no signed-in tab|bridge/i);
+  });
+
   it('surfaces an HTML error page as an error rather than parsing it', async () => {
     const t = new FakeTransport((i) =>
       i.path.startsWith('api/')

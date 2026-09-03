@@ -64,6 +64,13 @@ the JSON endpoints then quietly return `{}`. A status check would report success
 forever. `mah_signed_in` tests the body — use it when results come back empty. Sessions
 are short-lived; expect to sign in again between uses.
 
+There is a second, sneakier false green: an **empty** body. fetchproxy issues requests
+from *inside* a tab on the target host, so with no my.atriumhealth.org tab open it
+relays nothing — and empty text contains no login marker, so a naive "is this the login
+page?" check reports SIGNED IN for a response that never happened. `mah_signed_in`
+checks emptiness first and returns `2` with the real remedy (exit `1` means signed out,
+`0` means signed in).
+
 ## Exit codes (fpx)
 
 `0` ok · `1` usage · `2` bridge unavailable (extension not connected, or pairing not
