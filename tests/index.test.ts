@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { MyAtriumHealthClient } from '../src/client.js';
 import type { MahTransport } from '../src/transport.js';
 import { registerAccountTools } from '../src/tools/account.js';
+import { registerBillingTools } from '../src/tools/billing.js';
 import { registerRecordTools } from '../src/tools/records.js';
 import { registerResultTools } from '../src/tools/results.js';
 import { registerVisitTools } from '../src/tools/visits.js';
@@ -27,6 +28,7 @@ function registeredToolNames(): string[] {
   registerResultTools(server, client);
   registerVisitTools(server, client);
   registerAccountTools(server, client);
+  registerBillingTools(server, client);
   return names;
 }
 
@@ -42,6 +44,8 @@ describe('tool roster', () => {
       'mah_get_health_summary',
       'mah_get_menu',
       'mah_list_allergies',
+      'mah_list_billing_accounts',
+      'mah_list_care_team',
       'mah_list_goals',
       'mah_list_health_issues',
       'mah_list_immunizations',

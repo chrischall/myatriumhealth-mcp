@@ -24,7 +24,14 @@
     "test:coverage": "npm run typecheck && vitest run --coverage",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "keywords": ["mcp", "mychart", "epic", "atrium-health", "myatriumhealth", "health-records"],
+  "keywords": [
+    "mcp",
+    "mychart",
+    "epic",
+    "atrium-health",
+    "myatriumhealth",
+    "health-records"
+  ],
   "author": "chrischall",
   "license": "MIT",
   "repository": {
@@ -38,6 +45,7 @@
     "@chrischall/mcp-utils": "^0.20.0",
     "@fetchproxy/server": "^2.1.0",
     "@modelcontextprotocol/sdk": "^1.22.0",
+    "node-html-parser": "^9.0.3",
     "zod": "^4.4.0"
   },
   "devDependencies": {

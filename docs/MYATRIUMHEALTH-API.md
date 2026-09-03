@@ -156,9 +156,45 @@ uncapturable, having only checked `ActiveCoverages`). Fields:
 `POST Insurance/Coverages/GetPayors` (empty body) → `{Payors}`, a reference list of
 insurers.
 
-## Areas with no data endpoint (server-rendered HTML)
+## Care team (legacy)
 
-Billing (`Billing/Summary`), Documents (`Documents`) and Care Team (`CareTeam`) issue no
-XHR beyond `api/search/LoadMenuInfo` — their data is rendered into the page HTML. Exposing
-them means parsing HTML (node-html-parser), not calling an endpoint. Verified by walking
-each page with the network log open.
+`POST Clinical/CareTeam/Load?hfrId=&sources=&actions=&isPrimaryStandalone=true&ComponentNumber=2`
+and `POST Clinical/CareTeam/LoadExternal?hfrId=&sources=&actions=&ComponentNumber=2`
+→ `{ProvidersList[], DescriptiveTitle, TabColorClass, IsCustomApptReqEnabled,
+CustomRequestAppointmentLink}`.
+
+The page issues BOTH and shows the union, so a client must too; de-duplicate on `ID`.
+Provider fields: `Name`, `Specialty`, `Relation`, `IsExternal`, `CareTeamStatus`,
+`NationalProviderID`, `Organizations`, `Photo`, `WebPageUrl`, `CanMessage`,
+`CanDirectSchedule`, `CanRequestAppointment`, `SchedulableVisitTypes`, `AboutMeBlurb`.
+
+> An earlier revision of this file claimed Care Team had no data endpoint. That was
+> wrong — an artifact of reading a network log that truncated at 200 entries with
+> CareTeam loaded last. When ruling an endpoint out, clear the log and load that page
+> alone.
+
+## Billing — server-rendered, no data endpoint
+
+`Billing/Summary` issues no XHR at all (only its own page and two template/controller
+bundles), so the accounts are rendered into the HTML and must be parsed. Confirmed by
+clearing the network log and loading the page alone.
+
+Account cards live in three containers, which is the bucket:
+
+| Container id | Meaning |
+|---|---|
+| `ba_accountList` | outstanding |
+| `ba_zeroAccountList` | zero balance |
+| `ba_authAccountList` | guarantor-authorized |
+
+Each `.ba_card` carries `.ba_card_header_saLabel_saName` (account name),
+`.ba_card_header_account_idAndType`, `.ba_card_header_account_billsys`,
+`.ba_card_header_account_patients`, `.ba_card_status_due_label` and
+`.ba_card_status_due_amount`. `billingSystem` is empty on some accounts, so treat every
+field as optional. See `src/parse.ts`.
+
+## Documents — not captured
+
+`Documents` renders no document list on the landing page (964 characters of visible text)
+and issues no XHR. It most likely requires selecting a category first; that flow has not
+been captured.

@@ -52,6 +52,14 @@
       "description": "List allergies and their reactions from the health summary"
     },
     {
+      "name": "mah_list_billing_accounts",
+      "description": "List billing accounts and balances due, parsed from the server-rendered billing page"
+    },
+    {
+      "name": "mah_list_care_team",
+      "description": "List care team providers with specialty and relationship, internal and external"
+    },
+    {
       "name": "mah_list_goals",
       "description": "List patient goals tracked in MyAtriumHealth"
     },

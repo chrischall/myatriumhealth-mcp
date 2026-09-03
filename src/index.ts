@@ -17,6 +17,7 @@ import { runMcp, readPortEnv } from '@chrischall/mcp-utils';
 import { MyAtriumHealthClient } from './client.js';
 import { DEFAULT_PORT, FetchproxyTransport } from './transport-fetchproxy.js';
 import { registerAccountTools } from './tools/account.js';
+import { registerBillingTools } from './tools/billing.js';
 import { registerHealthcheckTools } from './tools/healthcheck.js';
 import { registerRecordTools } from './tools/records.js';
 import { registerResultTools } from './tools/results.js';
@@ -42,6 +43,7 @@ await runMcp({
     (server) => registerResultTools(server, client),
     (server) => registerVisitTools(server, client),
     (server) => registerAccountTools(server, client),
+    (server) => registerBillingTools(server, client),
     (server) => registerHealthcheckTools(server, client, transport),
   ],
 });
