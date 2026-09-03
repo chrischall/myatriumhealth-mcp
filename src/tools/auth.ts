@@ -21,9 +21,12 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
     },
     async () => {
       const hasDevice = auth.deviceId() !== undefined;
+      // isSignedIn() first: discovering a live session settles mfaPending, so
+      // read the flag AFTER, or this reports a challenge that is already moot.
       const resumable = await auth.isSignedIn();
       return jsonResult({
         sessionResumable: resumable,
+        verificationPending: auth.mfaPending,
         trustedDeviceStored: hasDevice,
         nextStep: resumable
           ? 'A stored session is still live; no sign-in needed.'

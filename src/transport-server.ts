@@ -28,11 +28,9 @@ export class ServerTransport implements MahTransport {
         // another process, credentials since corrected, session restored from
         // disk), and checking them first would block calls that would succeed.
         if (await this.auth.isSignedIn()) {
+          // isSignedIn() clears mfaPending itself — every caller that observes
+          // a live session benefits, not just this one.
           this.loggedIn = true;
-          // A live session settles the question: leaving the flag set would
-          // have mah_healthcheck report sessionResumable next to
-          // verificationPending, which cannot both be actionable.
-          this.auth.mfaPending = false;
           return;
         }
         // The password was refused and nothing has changed since: report it

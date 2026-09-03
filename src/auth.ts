@@ -211,7 +211,13 @@ export class MyAtriumHealthAuth {
     const loc = res.headers.get('location') ?? '';
     if (/SecondaryValidation/i.test(loc)) return false;
     if (/Authentication\/Login/i.test(loc)) return false;
-    return !/<title>[^<]*Login Page/i.test(body);
+    const live = !/<title>[^<]*Login Page/i.test(body);
+    // Clear here, not in the transport: mah_auth_status and mah_healthcheck call
+    // this directly, so clearing further out left them able to report a live
+    // session beside a pending verification. This is the one place that
+    // observes the answer, so it is the one place that should settle the flag.
+    if (live) this.mfaPending = false;
+    return live;
   }
 
   /** Redact the live password out of any text before it can surface. */

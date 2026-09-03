@@ -401,3 +401,35 @@ describe('auto-review round 2 (PR #8)', () => {
     expect(Object.fromEntries(rec.cookies)['SESS']).toBe('rotated');
   });
 });
+
+describe('auto-review round 3 (PR #10)', () => {
+  const live = { status: 200, body: '<title>MyAtriumHealth - Home</title>' };
+  const withSession = () => {
+    const store = memoryStore();
+    store.save({ deviceId: '', username: USER, cookies: [['SESS', 'abc']] } as never);
+    return store;
+  };
+
+  it('clears a stale challenge flag via isSignedIn itself, not just via the transport', async () => {
+    // mah_auth_status and mah_healthcheck call isSignedIn() DIRECTLY. Clearing
+    // the flag only inside ServerTransport left them able to report
+    // sessionResumable:true beside verificationPending:true.
+    const { fetchImpl } = harness(() => live);
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: withSession() });
+    (auth as unknown as { mfaPending: boolean }).mfaPending = true;
+    expect(await auth.isSignedIn()).toBe(true);
+    expect((auth as unknown as { mfaPending: boolean }).mfaPending).toBe(false);
+  });
+
+  it('leaves the flag set when the session is NOT live', async () => {
+    const { fetchImpl } = harness(() => ({
+      status: 302,
+      headers: { location: '/myatriumhealth/Authentication/SecondaryValidation' },
+      body: '',
+    }));
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: withSession() });
+    (auth as unknown as { mfaPending: boolean }).mfaPending = true;
+    expect(await auth.isSignedIn()).toBe(false);
+    expect((auth as unknown as { mfaPending: boolean }).mfaPending).toBe(true);
+  });
+});
