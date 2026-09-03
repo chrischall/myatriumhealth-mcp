@@ -19,23 +19,38 @@ export class ServerTransport implements MahTransport {
 
   private async ensureSession(): Promise<void> {
     if (this.loggedIn) return;
-    // A live session wins over a pending flag: the flag can be stale (verified
-    // in another process, or a session restored from disk), and checking it
-    // first would block every data call while sign-in reported success.
-    if (await this.auth.isSignedIn()) {
-      this.loggedIn = true;
-      return;
-    }
-    // Genuinely waiting on a code: surface that instead of logging in again.
-    if (this.auth.mfaPending) {
-      const ctx = await this.auth.challengeContext();
-      throw new MfaRequiredError(ctx?.channels ?? ['sms', 'email'], {
-        ...(ctx?.displayEmail !== undefined ? { email: ctx.displayEmail } : {}),
-        ...(ctx?.displayPhone !== undefined ? { phone: ctx.displayPhone } : {}),
-      });
-    }
+    // Everything below shares ONE in-flight promise, including the cheap
+    // is-it-already-live probe: a concurrent burst of tool calls otherwise
+    // fires N GET Homes before converging on the single shared login.
     this.inFlight ??= (async () => {
       try {
+        // A live session wins over either latch: both can be stale (verified in
+        // another process, credentials since corrected, session restored from
+        // disk), and checking them first would block calls that would succeed.
+        if (await this.auth.isSignedIn()) {
+          this.loggedIn = true;
+          return;
+        }
+        // The password was refused and nothing has changed since: report it
+        // rather than spending another attempt. Six sequential tool calls must
+        // not cost six failed logins — that is a lockout, and it would take the
+        // bridge transport down too, since both share the account.
+        if (this.auth.credentialsRejected) {
+          throw new McpToolError('MyAtriumHealth did not accept the credentials.', {
+            hint:
+              'Fix MAH_USERNAME / MAH_PASSWORD, then call mah_sign_in to retry. Further ' +
+              'tool calls will not re-attempt sign-in on their own, deliberately: repeated ' +
+              'failures escalate to a captcha or lockout.',
+          });
+        }
+        // Genuinely waiting on a code: surface that instead of logging in again.
+        if (this.auth.mfaPending) {
+          const ctx = await this.auth.challengeContext();
+          throw new MfaRequiredError(ctx?.channels ?? ['sms', 'email'], {
+            ...(ctx?.displayEmail !== undefined ? { email: ctx.displayEmail } : {}),
+            ...(ctx?.displayPhone !== undefined ? { phone: ctx.displayPhone } : {}),
+          });
+        }
         await this.auth.login();
         this.loggedIn = true;
       } finally {

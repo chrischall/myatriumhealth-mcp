@@ -150,6 +150,15 @@ export class MyAtriumHealthAuth {
    * attack. Cleared by a successful {@link verifyCode}.
    */
   mfaPending = false;
+  /**
+   * The credentials were refused. Symmetric to {@link mfaPending}, and for the
+   * same reason: without it every tool call re-submits the password, so one
+   * typo'd env var becomes six failed logins across six sequential tool calls —
+   * past the usual lockout threshold, and a lockout takes the BRIDGE transport
+   * down with it because both share the account. Cleared only by an explicit
+   * sign-in, so a corrected password can still be tried.
+   */
+  credentialsRejected = false;
   /** The CHALLENGE page's antiforgery token — distinct from the login page's. */
   private challengeToken: string | undefined;
 
@@ -168,12 +177,13 @@ export class MyAtriumHealthAuth {
   }
 
   /** Persist the jar (and any device token) so a restart can resume. */
-  private persist(): void {
+  private persist(deviceId?: string): void {
     const { username } = this.credentials();
     const prev = this.store.load();
+    const carried = prev?.username === username ? (prev.deviceId ?? '') : '';
     this.store.save({
-      deviceId: prev?.username === username ? (prev.deviceId ?? '') : '',
-      // (device token carried forward unchanged; login never mints one)
+      // Only verification mints a token; every other caller carries it forward.
+      deviceId: deviceId ?? carried,
       username,
       savedAt: Date.now(),
       cookies: [...this.jar],
@@ -285,10 +295,12 @@ export class MyAtriumHealthAuth {
    * Log in server-side. Resolves when a session is established; raises
    * {@link MfaRequiredError} when the portal wants a verification code.
    */
-  async login(): Promise<{ signedIn: true; usedDeviceId: boolean }> {
+  async login(): Promise<{ signedIn: true }> {
+    // An explicit login is the user asserting the credentials are worth trying
+    // again — that is what clears the latch.
+    this.credentialsRejected = false;
     const { username, password } = this.credentials();
     const token = await this.antiforgeryToken();
-    const device = this.deviceId();
 
     const form = new URLSearchParams();
     form.set('__RequestVerificationToken', token);
@@ -299,14 +311,13 @@ export class MyAtriumHealthAuth {
         Credentials: { LoginIdentifier: b64(username), Password: b64(password) },
       }),
     );
-    // DELIBERATELY NOT SENT. The RememberDeviceId this portal returns is not a
+    // The stored device token is DELIBERATELY NOT SENT. The RememberDeviceId this portal returns is not a
     // device-tracking id it will accept back: including it does not skip
     // verification AND it breaks the challenge — the SecondaryValidation page
     // then renders without its templateContext, so the antiforgery token cannot
     // be read and SendCode 500s. Measured both ways, repeatedly. The account
     // reports RememberMeSettings.EnrollDeviceTracking:False, which fits.
     // Session continuity comes from the persisted cookie jar instead.
-    void device;
 
     const { res, body } = await this.request('Authentication/Login/DoLogin', {
       method: 'POST',
@@ -328,6 +339,7 @@ export class MyAtriumHealthAuth {
     // retry it: the login controller can switch on hCaptcha/reCAPTCHA, and
     // repeated failures escalate to a lockout that breaks every auth path.
     if (/error=/i.test(location) || /genericloginfailed/i.test(location)) {
+      this.credentialsRejected = true;
       throw new McpToolError('MyAtriumHealth rejected the credentials.', {
         hint:
           'Check MAH_USERNAME / MAH_PASSWORD. Do not retry repeatedly — the portal ' +
@@ -357,6 +369,7 @@ export class MyAtriumHealthAuth {
     // redirect. Returning success here made a failed login look like a working
     // session, and cost a second DoLogin on the next tool call.
     if (/<title>[^<]*Login Page/i.test(landing.body) || /Authentication\/Login/i.test(nextLocation)) {
+      this.credentialsRejected = true;
       throw new McpToolError('MyAtriumHealth did not accept the credentials.', {
         hint:
           'Check MAH_USERNAME / MAH_PASSWORD. Do not retry repeatedly — the portal ' +
@@ -365,7 +378,7 @@ export class MyAtriumHealthAuth {
     }
     this.mfaPending = false;
     this.persist();
-    return { signedIn: true, usedDeviceId: false };
+    return { signedIn: true };
   }
 
   /** Ask the portal to send the human a verification code. */
@@ -442,15 +455,9 @@ export class MyAtriumHealthAuth {
 
     const id = parsed.RememberDeviceId;
     this.mfaPending = false;
-    const { username } = this.credentials();
     // Persist the jar either way: the session established by verifying is worth
     // keeping even if the device token turns out not to be honoured.
-    this.store.save({
-      deviceId: rememberDevice && typeof id === 'string' ? id : '',
-      username,
-      savedAt: Date.now(),
-      cookies: [...this.jar],
-    });
+    this.persist(rememberDevice && typeof id === 'string' ? id : '');
     return { remembered: rememberDevice && typeof id === 'string' && id !== '' };
   }
 }

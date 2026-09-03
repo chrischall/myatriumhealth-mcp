@@ -331,3 +331,41 @@ describe('healthcheck must not authenticate', () => {
     expect(logins).toBe(0);
   });
 });
+
+describe('a refused credential latches', () => {
+  const rejecting = (count: { n: number }) =>
+    harness((url) => {
+      if (url.includes('Authentication/Login') && !url.includes('DoLogin')) return { body: loginPage };
+      if (url.includes('DoLogin')) {
+        count.n++;
+        return { status: 302, headers: { location: '/myatriumhealth/Authentication/Login?error=1' } };
+      }
+      return { body: loginPage };
+    });
+
+  it('spends ONE login across many sequential tool calls, not one each', async () => {
+    // The lockout scenario: a typo'd password, six sequential tool calls. Each
+    // must report the failure without spending another credential submission —
+    // six would pass the usual MyChart lockout threshold and break BOTH
+    // transports, since the bridge shares the account.
+    const count = { n: 0 };
+    const { fetchImpl } = rejecting(count);
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: memoryStore() });
+    const { ServerTransport } = await import('../src/transport-server.js');
+    const t = new ServerTransport(auth);
+    for (let i = 0; i < 6; i++) {
+      await expect(t.fetch({ method: 'GET', path: 'api/x/Y' })).rejects.toThrow(/credential|rejected|accept/i);
+    }
+    expect(count.n).toBe(1);
+  });
+
+  it('an explicit sign-in clears the latch so a corrected password can be tried', async () => {
+    const count = { n: 0 };
+    const { fetchImpl } = rejecting(count);
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: memoryStore() });
+    await auth.login().catch(() => {});
+    expect((auth as unknown as { credentialsRejected: boolean }).credentialsRejected).toBe(true);
+    await auth.login().catch(() => {});   // explicit retry is allowed
+    expect(count.n).toBe(2);
+  });
+});

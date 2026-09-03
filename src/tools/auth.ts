@@ -43,8 +43,8 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
     },
     async () => {
       try {
-        const r = await auth.login();
-        return jsonResult({ signedIn: true, usedTrustedDevice: r.usedDeviceId });
+        await auth.login();
+        return jsonResult({ signedIn: true });
       } catch (e) {
         if (e instanceof MfaRequiredError) {
           return jsonResult({
