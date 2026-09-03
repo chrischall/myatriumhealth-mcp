@@ -19,7 +19,14 @@ export class ServerTransport implements MahTransport {
 
   private async ensureSession(): Promise<void> {
     if (this.loggedIn) return;
-    // Already waiting on a code: surface that instead of logging in again.
+    // A live session wins over a pending flag: the flag can be stale (verified
+    // in another process, or a session restored from disk), and checking it
+    // first would block every data call while sign-in reported success.
+    if (await this.auth.isSignedIn()) {
+      this.loggedIn = true;
+      return;
+    }
+    // Genuinely waiting on a code: surface that instead of logging in again.
     if (this.auth.mfaPending) {
       const ctx = await this.auth.challengeContext();
       throw new MfaRequiredError(ctx?.channels ?? ['sms', 'email'], {
@@ -29,12 +36,6 @@ export class ServerTransport implements MahTransport {
     }
     this.inFlight ??= (async () => {
       try {
-        // A persisted jar may already be a live session — that is the whole
-        // point of keeping it, and it avoids both a login and a verification.
-        if (await this.auth.isSignedIn()) {
-          this.loggedIn = true;
-          return;
-        }
         await this.auth.login();
         this.loggedIn = true;
       } finally {

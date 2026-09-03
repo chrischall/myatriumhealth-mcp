@@ -36,6 +36,15 @@ const username = readEnvVar('MAH_USERNAME');
 const password = readEnvVar('MAH_PASSWORD');
 const bridgeless = username !== undefined && password !== undefined;
 
+// A typo'd variable name would otherwise fall back to bridge mode in silence,
+// and the user would wonder why sign-in tools never appeared.
+if (!bridgeless && (username !== undefined || password !== undefined)) {
+  console.error(
+    '[myatriumhealth-mcp] Only one of MAH_USERNAME / MAH_PASSWORD is set — both are ' +
+      'required for bridge-less sign-in. Falling back to the browser bridge.',
+  );
+}
+
 const port = readPortEnv('MAH_WS_PORT', DEFAULT_PORT);
 let transport: MahTransport;
 let auth: MyAtriumHealthAuth | undefined;

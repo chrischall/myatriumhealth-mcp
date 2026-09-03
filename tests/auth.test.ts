@@ -204,3 +204,116 @@ describe('a pending challenge is not re-attempted', () => {
     expect((auth as unknown as { mfaPending: boolean }).mfaPending).toBe(false);
   });
 });
+
+describe('auto-review findings (PR #8)', () => {
+  const homeLogin = { status: 200, body: '<html><head><title>MyAtriumHealth - Login Page</title></head></html>' };
+
+  it('does not report success when the landing page is the login page', async () => {
+    // A rejected password can land here with no error marker; returning
+    // signedIn:true made a failed login look like a working session.
+    let logins = 0;
+    const { fetchImpl } = harness((url) => {
+      if (url.includes('DoLogin')) { logins++; return { status: 302, headers: { location: '/myatriumhealth/Home' } }; }
+      if (url.endsWith('/Home')) return homeLogin;
+      return { body: loginPage };
+    });
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: memoryStore() });
+    await expect(auth.login()).rejects.toThrow(/rejected|credential/i);
+    expect(logins).toBe(1);
+  });
+
+  it('persists the cookie jar on an unchallenged login, not only after verifying', async () => {
+    const store = memoryStore();
+    const { fetchImpl } = harness((url) => {
+      if (url.includes('DoLogin')) {
+        return { status: 302, headers: { location: '/myatriumhealth/Home', 'set-cookie': 'SESS=abc; Path=/' } };
+      }
+      if (url.endsWith('/Home')) return { status: 200, body: '<title>MyAtriumHealth - Home</title>' };
+      return { body: loginPage };
+    });
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: store });
+    await auth.login();
+    const rec = store.load() as unknown as { cookies?: [string, string][] } | null;
+    expect(rec?.cookies?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('treats an empty stored device token as absent', async () => {
+    const store = memoryStore();
+    store.save({ deviceId: '', username: USER } as never);
+    const { fetchImpl } = harness(() => ({ body: loginPage }));
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: store });
+    expect(auth.deviceId()).toBeUndefined();
+  });
+
+  it('clears a pending challenge when a login succeeds without one', async () => {
+    const { fetchImpl } = harness((url) => {
+      if (url.includes('DoLogin')) return { status: 302, headers: { location: '/myatriumhealth/Home' } };
+      if (url.endsWith('/Home')) return { status: 200, body: '<title>MyAtriumHealth - Home</title>' };
+      return { body: loginPage };
+    });
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: memoryStore() });
+    (auth as unknown as { mfaPending: boolean }).mfaPending = true;
+    await auth.login();
+    expect((auth as unknown as { mfaPending: boolean }).mfaPending).toBe(false);
+  });
+
+  it('does not treat IsEnabled as Enabled when reading remember-me settings', async () => {
+    const { parseChallengeContext } = await import('../src/auth.js');
+    const page = `<script>var templateContext = {
+      TwoFactorSettings : { AllowEmail : True, Workflow: 1, },
+      RememberMeSettings : { IsEnabled : True, Enabled : False, EnrollDeviceTracking: False },
+    };</script>`;
+    expect(parseChallengeContext(page)!.rememberMeEnabled).toBe(false);
+  });
+});
+
+describe('ServerTransport session handling', () => {
+  const signedInHome = { status: 200, body: '<title>MyAtriumHealth - Home</title>' };
+
+  it('resumes a stored session without logging in at all', async () => {
+    let logins = 0;
+    const store = memoryStore();
+    store.save({ deviceId: '', username: USER, cookies: [['SESS', 'abc']] } as never);
+    const { fetchImpl } = harness((url) => {
+      if (url.includes('DoLogin')) { logins++; return { status: 302, headers: { location: '/myatriumhealth/Home' } }; }
+      return signedInHome;
+    });
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: store });
+    const { ServerTransport } = await import('../src/transport-server.js');
+    await new ServerTransport(auth).fetch({ method: 'GET', path: 'Home' });
+    expect(logins).toBe(0);
+  });
+
+  it('a live session beats a stale pending-challenge flag', async () => {
+    const store = memoryStore();
+    store.save({ deviceId: '', username: USER, cookies: [['SESS', 'abc']] } as never);
+    const { fetchImpl } = harness(() => signedInHome);
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: store });
+    (auth as unknown as { mfaPending: boolean }).mfaPending = true;
+    const { ServerTransport } = await import('../src/transport-server.js');
+    await expect(
+      new ServerTransport(auth).fetch({ method: 'GET', path: 'Home' }),
+    ).resolves.toBeTruthy();
+  });
+
+  it('re-logs in and replays EXACTLY once when a response is the login page', async () => {
+    let logins = 0;
+    let dataHits = 0;
+    const { fetchImpl } = harness((url) => {
+      if (url.includes('Authentication/Login') && !url.includes('DoLogin')) return { body: loginPage };
+      if (url.includes('DoLogin')) { logins++; return { status: 302, headers: { location: '/myatriumhealth/Home' } }; }
+      if (url.endsWith('/Home')) return signedInHome;
+      dataHits++;
+      // Always the login page: the transport must give up, not loop, because
+      // each retry is another credential submission.
+      return { status: 200, body: '<title>MyAtriumHealth - Login Page</title>' };
+    });
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: memoryStore() });
+    const { ServerTransport } = await import('../src/transport-server.js');
+    await expect(
+      new ServerTransport(auth).fetch({ method: 'GET', path: 'api/x/Y' }),
+    ).rejects.toThrow(/could not be re-established/i);
+    expect(dataHits).toBe(2);      // original + exactly one replay
+    expect(logins).toBeLessThanOrEqual(2);
+  });
+});

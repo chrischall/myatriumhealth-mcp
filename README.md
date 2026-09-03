@@ -73,7 +73,10 @@ call prints a pair code — approve it once in the Transporter popup.
 
 | Env | Default | Purpose |
 |---|---|---|
-| `MAH_WS_PORT` | `37149` | fetchproxy concentrator port. The whole fleet shares this one port; override only when hosting. |
+| `MAH_USERNAME` | — | MyAtriumHealth username. Set **with** `MAH_PASSWORD` to enable bridge-less mode. |
+| `MAH_PASSWORD` | — | Portal password. Both are required; setting only one falls back to the bridge (with a warning). |
+| `MAH_DEVICE_FILE` | `~/.myatriumhealth-mcp/device.json` | Session state (0600). Holds the **live cookie jar** as well as the device token — treat as a credential. |
+| `MAH_WS_PORT` | `37149` | fetchproxy concentrator port (bridge mode only). The whole fleet shares this one port; override only when hosting. |
 
 ## Tools
 
@@ -96,7 +99,11 @@ All read-only — this surface exposes no writes.
 | `mah_list_care_team` | Care team providers, internal and external |
 | `mah_list_billing_accounts` | Billing accounts and balances (parsed from HTML) |
 | `mah_get_menu` | Which portal features this account exposes |
-| `mah_healthcheck` | Bridge health, and whether the portal session is signed in |
+| `mah_healthcheck` | Connection health — bridge status, or credential/session status in bridge-less mode |
+| `mah_auth_status` | Whether a session can be resumed and whether a device token is stored *(bridge-less only)* |
+| `mah_sign_in` | Sign in server-side; reports verification channels if a code is needed *(bridge-less only)* |
+| `mah_send_verification_code` | Ask the portal to send a code to the account holder *(bridge-less only)* |
+| `mah_verify_code` | Submit the code the user received *(bridge-less only)* |
 
 Listing tools take `compact` (default `false`). The raw envelopes are large — test
 results ~33 KB, medications ~30 KB — so pass `compact: true` when browsing. If the

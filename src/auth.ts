@@ -104,7 +104,7 @@ export function parseChallengeContext(html: string): ChallengeContext | null {
   if (!block) return null;
   const tfs = block[1] as string;
   const flag = (name: string, src: string): boolean =>
-    new RegExp(`${name}\\s*:\\s*True\\b`, 'i').test(src);
+    new RegExp(`\\b${name}\\s*:\\s*True\\b`, 'i').test(src);
   const str = (name: string): string | undefined =>
     new RegExp(`${name}\\s*:\\s*"([^"]*)"`).exec(tfs)?.[1];
 
@@ -173,6 +173,7 @@ export class MyAtriumHealthAuth {
     const prev = this.store.load();
     this.store.save({
       deviceId: prev?.username === username ? (prev.deviceId ?? '') : '',
+      // (device token carried forward unchanged; login never mints one)
       username,
       savedAt: Date.now(),
       cookies: [...this.jar],
@@ -273,7 +274,11 @@ export class MyAtriumHealthAuth {
   deviceId(): string | undefined {
     const rec = this.store.load();
     const { username } = this.credentials();
-    return rec && rec.username === username ? rec.deviceId : undefined;
+    // An empty string is ABSENT, not "stored": persistence writes '' when the
+    // portal returned no token, and reporting that as a stored device made
+    // mah_auth_status claim a trust that does not exist.
+    const id = rec && rec.username === username ? rec.deviceId : undefined;
+    return id !== undefined && id !== '' ? id : undefined;
   }
 
   /**
@@ -347,7 +352,20 @@ export class MyAtriumHealthAuth {
         ...(ctx?.displayPhone !== undefined ? { phone: ctx.displayPhone } : {}),
       });
     }
-    return { signedIn: true, usedDeviceId: device !== undefined };
+    // The landing page being the LOGIN page means the credentials were not
+    // accepted — the portal does not always set an error marker on the
+    // redirect. Returning success here made a failed login look like a working
+    // session, and cost a second DoLogin on the next tool call.
+    if (/<title>[^<]*Login Page/i.test(landing.body) || /Authentication\/Login/i.test(nextLocation)) {
+      throw new McpToolError('MyAtriumHealth did not accept the credentials.', {
+        hint:
+          'Check MAH_USERNAME / MAH_PASSWORD. Do not retry repeatedly — the portal ' +
+          'escalates to a captcha or lockout after repeated failures.',
+      });
+    }
+    this.mfaPending = false;
+    this.persist();
+    return { signedIn: true, usedDeviceId: false };
   }
 
   /** Ask the portal to send the human a verification code. */
