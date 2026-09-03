@@ -31,8 +31,10 @@ mah_signed_in() {
   # for a perfectly good session (verified against the real Home page).
   local title
   title="$(printf %s "$page" | sed -n 's/.*<title>\([^<]*\)<\/title>.*/\1/p' | head -1)"
+  # Keep these in step with isAuthWall() in src/client.ts. Matching two-factor
+  # in the TITLE is safe; matching it in the BODY is not (see above).
   case "$title" in
-    *"Login Page"*|*Verify*|*Verification*) return 1 ;;
+    *"Login Page"*|*Verify*|*Verification*|*[Tt]wo-[Ff]actor*|*[Tt]wo\ [Ff]actor*|*twoFactor*) return 1 ;;
   esac
   case "$page" in
     *'name="verificationCode"'*) return 1 ;;
