@@ -2,33 +2,63 @@ version: 1
 name: MyAtriumHealth
 slug: myatriumhealth
 
-# Browser-bridge MCP: every request is relayed through the user's signed-in
-# my.atriumhealth.org tab, because all MyChart cookies are HttpOnly and login
-# is MFA-gated, so the session cannot be replayed from Node. Hosting therefore
-# requires a BRIDGED registration — `bridge: true` plus
-# `bridgePortEnv: MAH_WS_PORT`, on `runtime: fly-shared`. Those are
-# registration fields set over the control API; this manifest has no column
-# for them. See mcp-host docs/BROWSER-BRIDGE.md, which currently describes
-# bridge hosting as built but unproven over the WAN.
+# This server has TWO transports and the hosted one is the bridge-less path:
+# with MAH_USERNAME/MAH_PASSWORD set it signs in server-side with its own cookie
+# jar, so no browser, extension or bridge is involved and this registers like any
+# other credential MCP.
+#
+# Without those credentials it falls back to the fetchproxy browser bridge, which
+# relays through the user's signed-in tab. Hosting THAT would additionally need
+# `bridge: true` + `bridgePortEnv: MAH_WS_PORT` on `runtime: fly-shared` — set
+# over the control API, since this manifest has no column for them — and
+# mcp-host's docs/BROWSER-BRIDGE.md still calls bridge hosting built but
+# unproven over the WAN. Prefer the credential path.
+#
+# Verification is human-in-the-loop and cannot be automated away: when the portal
+# challenges, the connector reports the available channels, the portal sends a
+# code to the ACCOUNT HOLDER, and they supply it. Expect that on first use and
+# again whenever the stored session lapses. Nothing needs reconnecting when it
+# does.
 
 env:
+  - name: MAH_USERNAME
+    secret: true
+    required: true
+    help: >-
+      MyAtriumHealth portal username. Required together with MAH_PASSWORD — a
+      hosted registration cannot use the browser-bridge fallback, so without both
+      the child boots but every tool fails.
+  - name: MAH_PASSWORD
+    secret: true
+    required: true
+    help: >-
+      Portal password. Setting only one of the pair falls back to bridge mode
+      (the server warns on stderr), which is not usable when hosted.
+  - name: MAH_DEVICE_FILE
+    required: false
+    help: >-
+      Override the session-state file path. Defaults to device.json under the
+      data directory, which is where it belongs when hosted.
   - name: MAH_WS_PORT
     required: false
     help: >-
-      Override the fetchproxy WebSocket concentrator port (default 37149). A
-      hosted registration must set this so the runner can inject a
-      per-registration port.
+      fetchproxy WebSocket concentrator port (default 37149). Only meaningful for
+      the browser-bridge fallback; ignored on the credential path.
 
 state:
   dataDir: true
   reason: >-
-    The fetchproxy identity lives at $HOME/.fetchproxy/identity/myatriumhealth-mcp.json
-    and the pair code derives from it. Without persistence every cold start mints a
-    fresh identity and re-prompts pairing in the user's browser. The API also requires
-    dataDir for any bridged registration.
+    Holds device.json, which stores the LIVE SESSION COOKIE JAR (plus the portal's
+    device-trust token, recorded but never sent). That jar is what lets a restart
+    resume an existing session. Without persistence every cold start signs in
+    again and, because this portal challenges a fresh sign-in, prompts the account
+    holder for a verification code — on a scale-to-zero machine, repeatedly. The
+    file is written 0600 and is credential-equivalent: anyone who can read it can
+    act as the account until the session lapses.
 
 egress:
-  # Server-side fetches all go through the bridge to this host. No other host is
-  # contacted: the client fetches only paths under my.atriumhealth.org/myatriumhealth.
+  # The only host contacted. On the credential path the server fetches paths under
+  # my.atriumhealth.org/myatriumhealth directly; on the bridge fallback the same
+  # host is reached through the user's tab. No other host appears as a fetch base.
   allow:
     - my.atriumhealth.org
