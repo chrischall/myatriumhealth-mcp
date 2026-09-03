@@ -1,0 +1,112 @@
+# MyAtriumHealth endpoints — verified recipes
+
+Every recipe below was run against a live signed-in session. `source mah.sh` first and
+cache the token once per shell:
+
+    source references/mah.sh
+    mah_signed_in || echo "sign in to MyAtriumHealth in Chrome first"
+    export MAH_TOKEN="$(mah_token)"       # 172 chars; avoids re-fetching a 137KB page per call
+
+Response envelopes are large (test results 33KB, medications 30KB) — always project
+with `jq` rather than printing whole responses.
+
+---
+
+## Allergies
+
+    mah_api allergies/LoadAllergies | jq '[.dataList[].allergyItem
+      | {name, severe: .isSevere, reactions: [.reactionList[]?.name]}]'
+
+`dataList[].allergyItem` → `{id, name, reactionList[], classification, isSevere, priority, displayType}`.
+`localItem` repeats the same shape for this organization; `externalItems`/`externalOrgs`
+carry the same allergy as recorded at linked outside organizations.
+
+## Health issues (problem list)
+
+    mah_api HealthIssues/LoadHealthIssuesData | jq '[.dataList[].healthIssueItem
+      | {name, noted: .formattedDateNoted}]'
+
+`healthIssueItem` → `{name, id, formattedDateNoted, action, isReadOnly}`.
+
+## Immunizations
+
+    mah_api immunizations/LoadImmunizations | jq '[.organizationImmunizationList[]
+      | {org: .organization.OrganizationName?} + {shots: [.orgImmunizations[] | {name, dates: .formattedAdministeredDates}]}]'
+
+Grouped per organization: `organizationImmunizationList[].orgImmunizations[]`
+→ `{id, name, formattedAdministeredDates}`.
+
+## Medications
+
+    mah_api medications/LoadMedicationsPage | jq '[.communityMembers[]
+      | .prescriptionList.prescriptions[]?
+      | {name, friendly: .patientFriendlyName, sig, provider: .authorizingProvider}]'
+
+`communityMembers[]` is one entry per organization; each has
+`prescriptionList.prescriptions[]` → `{name, patientFriendlyName, sig,
+prescriptionNumber, authorizingProvider, orderingProvider, dateToDisplay,
+isPatientReported, …}`. `sig` is the dosing instruction text.
+
+## Test results
+
+    # index of result groups (visits), newest first
+    mah_api test-results/GetList | jq '[.newResultGroups[]
+      | {date: .formattedDate, type: .contactType, count: (.resultList | length)}]'
+
+    # the results themselves — newResults is a MAP keyed by an opaque handle
+    mah_api test-results/GetList | jq '[.newResults[]
+      | {name, abnormal: .isAbnormal,
+         when: .orderMetadata.prioritizedInstantDisplay,
+         provider: .orderMetadata.orderProviderName,
+         comments: [.providerComments[]?.content]}]'
+
+`newResultGroups[].resultList` is an array of **strings** — handles into `newResults`.
+`resultComponents` is empty in the list view (individual values load on the detail page).
+`orderMetadata` → `{orderProviderName, authorizingProviderName, prioritizedInstantISO,
+prioritizedInstantDisplay, resultType, read}`.
+
+## Goals
+
+    mah_api goals/LoadPatientGoals | jq '[.patientGoals[] | {goalId, goalType, lastUpdatedDate}]'
+
+## Health summary / menu / folders
+
+    mah_api health-summary/FetchHealthSummary | jq '{patientFirstName, actionPlans}'
+    mah_api conversations/GetFoldersList     | jq '.folders'      # [{tag, badgeCount, totalCount}]
+    mah_api search/LoadMenuInfo              | jq '[.submenus[] | {menu: .name, items: [.menuItems[].name]}]'
+
+Folder tags seen: `1` Conversations/inbox, `2` Archive, `3`, `6`, `7`
+(Bookmarked / Appointments / Automated — exact mapping unconfirmed).
+
+## Visits (legacy form-encoded endpoints — use `mah_legacy`)
+
+    mah_legacy Visits/VisitsList/LoadUpcoming "timeZone=America%2FNew_York&ComponentNumber=5" \
+      | jq '{next: .NextNDaysVisits, later: .LaterVisitsList, inProgress: .InProgressVisits}'
+
+    NOW=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+    mah_legacy Visits/VisitsList/LoadPast "loadpast=1&searchString=&oldestRenderedDate=$NOW&ComponentNumber=7" \
+      | jq '[.List[] | .Organization.OrganizationName as $o
+             | .List[] | {org: $o, date: .PrimaryDate, bucket: .PastVisitBucket, csn: .Csn}]'
+
+Past visits are grouped by an opaque organization handle under `.List`.
+
+---
+
+## Known gap — the message list
+
+`api/conversations/GetConversationList` needs a five-key body:
+
+    {"tag":1,
+     "localLoadParams":{"loadStartInstantISO":"","loadEndInstantISO":"","pagingInfo":1},
+     "externalLoadParams":{"<orgHandle>":{"communicationCenter":{…same three fields…}}},
+     "searchQuery":"",
+     "PageNonce":"<32-hex CSP nonce, see mah_nonce>"}
+
+Replaying the app's own captured body returns 200. Rebuilding it from the shell does
+**not** yet work: omitting or emptying `externalLoadParams` returns 500, and the
+organization handles from the visits response are not the set the communication center
+uses. Unresolved: where that handle set comes from. `api/item-feed/FetchItemFeed` is
+in the same category.
+
+Read the nonce the server sent (`mah_nonce app/communication-center`). Do not generate
+candidate nonce values — it is an anti-CSRF control.

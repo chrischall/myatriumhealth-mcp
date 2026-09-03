@@ -1,0 +1,22 @@
+{
+  "name": "myatriumhealth-mcp",
+  "displayName": "MyAtriumHealth",
+  "version": "0.0.0",
+  "description": "MyAtriumHealth (Epic MyChart) access for Claude \u2014 test results, medications, allergies, immunizations, visits",
+  "author": {
+    "name": "Chris Hall",
+    "email": "chris.c.hall@gmail.com"
+  },
+  "homepage": "https://github.com/chrischall/myatriumhealth-mcp",
+  "repository": "https://github.com/chrischall/myatriumhealth-mcp",
+  "license": "MIT",
+  "keywords": [
+    "angi",
+    "home-services",
+    "contractors",
+    "reviews",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "mcp": "./.mcp.json"
+}

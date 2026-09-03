@@ -1,0 +1,34 @@
+version: 1
+name: MyAtriumHealth
+slug: myatriumhealth
+
+# Browser-bridge MCP: every request is relayed through the user's signed-in
+# my.atriumhealth.org tab, because all MyChart cookies are HttpOnly and login
+# is MFA-gated, so the session cannot be replayed from Node. Hosting therefore
+# requires a BRIDGED registration — `bridge: true` plus
+# `bridgePortEnv: MAH_WS_PORT`, on `runtime: fly-shared`. Those are
+# registration fields set over the control API; this manifest has no column
+# for them. See mcp-host docs/BROWSER-BRIDGE.md, which currently describes
+# bridge hosting as built but unproven over the WAN.
+
+env:
+  - name: MAH_WS_PORT
+    required: false
+    help: >-
+      Override the fetchproxy WebSocket concentrator port (default 37149). A
+      hosted registration must set this so the runner can inject a
+      per-registration port.
+
+state:
+  dataDir: true
+  reason: >-
+    The fetchproxy identity lives at $HOME/.fetchproxy/identity/myatriumhealth-mcp.json
+    and the pair code derives from it. Without persistence every cold start mints a
+    fresh identity and re-prompts pairing in the user's browser. The API also requires
+    dataDir for any bridged registration.
+
+egress:
+  # Server-side fetches all go through the bridge to this host. No other host is
+  # contacted: the client fetches only paths under my.atriumhealth.org/myatriumhealth.
+  allow:
+    - my.atriumhealth.org

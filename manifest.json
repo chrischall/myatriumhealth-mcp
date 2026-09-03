@@ -1,0 +1,97 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/dxt/main/dist/mcpb-manifest.schema.json",
+  "manifest_version": "0.3",
+  "name": "myatriumhealth-mcp",
+  "display_name": "MyAtriumHealth",
+  "version": "0.0.0",
+  "description": "Read MyAtriumHealth (Atrium Health's Epic MyChart patient portal) \u2014 test results, medications, allergies, immunizations, health issues and visits \u2014 through your signed-in browser tab.",
+  "author": {
+    "name": "Chris Chall",
+    "email": "chris.c.hall@gmail.com",
+    "url": "https://github.com/chrischall"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrischall/myatriumhealth-mcp"
+  },
+  "homepage": "https://github.com/chrischall/myatriumhealth-mcp",
+  "support": "https://github.com/chrischall/myatriumhealth-mcp/issues",
+  "license": "MIT",
+  "keywords": [
+    "mychart",
+    "epic",
+    "atrium-health",
+    "health-records",
+    "fetchproxy"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/bundle.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/bundle.js"
+      ]
+    }
+  },
+  "tools": [
+    {
+      "name": "mah_list_allergies",
+      "description": "List allergies and their reactions from the health summary"
+    },
+    {
+      "name": "mah_list_health_issues",
+      "description": "List the problem list (current health issues)"
+    },
+    {
+      "name": "mah_list_immunizations",
+      "description": "List immunizations and administration dates by organization"
+    },
+    {
+      "name": "mah_list_medications",
+      "description": "List current medications with dosing instructions and prescriber"
+    },
+    {
+      "name": "mah_list_goals",
+      "description": "List patient goals tracked in MyAtriumHealth"
+    },
+    {
+      "name": "mah_list_test_results",
+      "description": "List lab and imaging results with abnormal flags and provider comments"
+    },
+    {
+      "name": "mah_list_upcoming_visits",
+      "description": "List upcoming and in-progress appointments"
+    },
+    {
+      "name": "mah_list_past_visits",
+      "description": "List past visits grouped by organization"
+    },
+    {
+      "name": "mah_get_health_summary",
+      "description": "Fetch the health-summary header and action plans"
+    },
+    {
+      "name": "mah_list_message_folders",
+      "description": "List Message Center folders with unread and total counts"
+    },
+    {
+      "name": "mah_get_menu",
+      "description": "List the portal features this account exposes"
+    },
+    {
+      "name": "mah_healthcheck",
+      "description": "Report fetchproxy bridge health and whether the portal session is signed in"
+    }
+  ],
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=22.5.0"
+    }
+  }
+}

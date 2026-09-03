@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "myatriumhealth": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@chrischall/myatriumhealth-mcp"
+      ],
+      "env": {
+        "MAH_WS_PORT": "37149"
+      }
+    }
+  }
+}
