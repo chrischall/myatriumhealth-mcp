@@ -23,7 +23,10 @@ import type { MahTransport } from './transport.js';
 import { registerAccountTools } from './tools/account.js';
 import { registerAuthTools } from './tools/auth.js';
 import { registerBillingTools } from './tools/billing.js';
-import { registerHealthcheckTools } from './tools/healthcheck.js';
+import {
+  registerBridgelessHealthcheckTools,
+  registerHealthcheckTools,
+} from './tools/healthcheck.js';
 import { registerRecordTools } from './tools/records.js';
 import { registerResultTools } from './tools/results.js';
 import { registerVisitTools } from './tools/visits.js';
@@ -84,7 +87,13 @@ await runMcp({
     (server) => registerVisitTools(server, client),
     (server) => registerAccountTools(server, client),
     (server) => registerBillingTools(server, client),
-    ...(auth !== undefined ? [(server: Parameters<typeof registerAuthTools>[0]) => registerAuthTools(server, auth)] : []),
+    ...(auth !== undefined
+      ? [
+          (server: Parameters<typeof registerAuthTools>[0]) => registerAuthTools(server, auth),
+          (server: Parameters<typeof registerBridgelessHealthcheckTools>[0]) =>
+            registerBridgelessHealthcheckTools(server, client, auth),
+        ]
+      : []),
     ...(bridge !== undefined
       ? [(server: Parameters<typeof registerHealthcheckTools>[0]) => registerHealthcheckTools(server, client, bridge)]
       : []),

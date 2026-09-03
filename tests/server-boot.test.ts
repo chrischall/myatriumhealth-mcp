@@ -131,7 +131,9 @@ describe('server boot (built artifact)', () => {
     expect(tools).toContain('mah_sign_in');
     expect(tools).toContain('mah_send_verification_code');
     expect(tools).toContain('mah_verify_code');
-    // The bridge healthcheck belongs to the OTHER transport and must be absent.
-    expect(tools).not.toContain('mah_healthcheck');
+    // A healthcheck must exist in BOTH modes — it is the tool people reach for
+    // when something is broken. Bridge-less registers the CREDENTIAL variant
+    // (the bridge is not on the request path there), under the same name.
+    expect(tools).toContain('mah_healthcheck');
   }, 30_000);
 });
