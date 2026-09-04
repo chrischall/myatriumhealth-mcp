@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.1.1...v0.2.0) (2026-09-04)
+
+
+### Features
+
+* collect credentials per connector user, with the MFA flow inline ([#15](https://github.com/chrischall/myatriumhealth-mcp/issues/15)) ([4e5c034](https://github.com/chrischall/myatriumhealth-mcp/commit/4e5c03457c2c96775d6d3073e4e0f2284861419c))
+
+
+### Bug Fixes
+
+* persist the jar when a challenge is raised, so a code survives a restart ([#14](https://github.com/chrischall/myatriumhealth-mcp/issues/14)) ([a75bb64](https://github.com/chrischall/myatriumhealth-mcp/commit/a75bb642236b4c20b4a470f9c6be6cf8f018ce73))
+
 ## [0.1.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.1.0...v0.1.1) (2026-09-04)
 
 
