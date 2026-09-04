@@ -387,6 +387,11 @@ export class MyAtriumHealthAuth {
       // parsed and returned Success:true.
       const ctx = await this.challengeContext();
       this.mfaPending = true;
+      // Persist the half-authenticated jar BEFORE raising. The code the portal
+      // is about to send is bound to this session, and on a scale-to-zero host
+      // the child can idle out between sending it and the user typing it in —
+      // taking the session with it, so a perfectly good code fails silently.
+      this.persist();
       throw new MfaRequiredError(ctx?.channels ?? ['sms', 'email'], {
         ...(ctx?.displayEmail !== undefined ? { email: ctx.displayEmail } : {}),
         ...(ctx?.displayPhone !== undefined ? { phone: ctx.displayPhone } : {}),
