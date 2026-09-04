@@ -1,6 +1,6 @@
 {
   "name": "@chrischall/myatriumhealth-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "MCP server for MyAtriumHealth (Atrium Health's Epic MyChart patient portal) via the fetchproxy browser bridge.",
   "type": "module",
   "bin": {
