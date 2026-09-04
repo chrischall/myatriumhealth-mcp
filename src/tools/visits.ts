@@ -26,12 +26,15 @@ export function registerVisitTools(
       },
     },
     async ({ timeZone, view }) => {
-      const patient = await patients.ensure(client);
-      const raw = await client.legacy('Visits/VisitsList/LoadUpcoming', {
-        timeZone,
-        ComponentNumber: '5',
-      });
-      return viewResponse(view, { patient, data: raw });
+      return viewResponse(
+        view, await patients.readAs(client, async () => {
+          const raw = await client.legacy('Visits/VisitsList/LoadUpcoming', {
+            timeZone,
+            ComponentNumber: '5',
+          });
+          return raw;
+        }),
+      );
     },
   );
 
@@ -52,35 +55,36 @@ export function registerVisitTools(
       },
     },
     async ({ before, compact }) => {
-      const patient = await patients.ensure(client);
-      const raw = await client.legacy('Visits/VisitsList/LoadPast', {
-        loadpast: '1',
-        searchString: '',
-        oldestRenderedDate: before ?? new Date().toISOString(),
-        ComponentNumber: '7',
-      });
-      return jsonResult({ patient, data:
-        project(raw, compact, 'Visits/VisitsList/LoadPast', (r: {
-          List?: Record<
-            string,
-            { Organization?: { OrganizationName?: string }; List?: Record<string, unknown>[] }
-          >;
-        }) =>
-          r.List === undefined
-            ? undefined
-            : Object.values(r.List).flatMap((g) =>
-                (g.List ?? []).map((v) =>
-                  tidy({
-                    organization: g.Organization?.OrganizationName,
-                    date: v['PrimaryDate'],
-                    bucket: v['PastVisitBucket'],
-                    csn: v['Csn'],
-                    unread: v['IsNotViewed'],
-                  }),
-                ),
-              ),
-        ),
-       });
+      return jsonResult(
+        await patients.readAs(client, async () => {
+          const raw = await client.legacy('Visits/VisitsList/LoadPast', {
+            loadpast: '1',
+            searchString: '',
+            oldestRenderedDate: before ?? new Date().toISOString(),
+            ComponentNumber: '7',
+          });
+          return project(raw, compact, 'Visits/VisitsList/LoadPast', (r: {
+              List?: Record<
+                string,
+                { Organization?: { OrganizationName?: string }; List?: Record<string, unknown>[] }
+              >;
+            }) =>
+              r.List === undefined
+                ? undefined
+                : Object.values(r.List).flatMap((g) =>
+                    (g.List ?? []).map((v) =>
+                      tidy({
+                        organization: g.Organization?.OrganizationName,
+                        date: v['PrimaryDate'],
+                        bucket: v['PastVisitBucket'],
+                        csn: v['Csn'],
+                        unread: v['IsNotViewed'],
+                      }),
+                    ),
+                  ),
+            );
+        }),
+      );
     },
   );
 }

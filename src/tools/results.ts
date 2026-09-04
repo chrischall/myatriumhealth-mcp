@@ -25,31 +25,32 @@ export function registerResultTools(
       },
     },
     async ({ compact }) => {
-      const patient = await patients.ensure(client);
-      const raw = await client.api('test-results/GetList');
-      return jsonResult({ patient, data:
-        project(raw, compact, 'test-results/GetList', (r: {
-          // `newResults` is a MAP keyed by an opaque result handle, not an array.
-          newResults?: Record<string, Record<string, unknown>>;
-        }) =>
-          r.newResults === undefined
-            ? undefined
-            : Object.values(r.newResults).map((v) => {
-                const om = (v['orderMetadata'] ?? {}) as Record<string, unknown>;
-                return tidy({
-                  name: v['name'],
-                  abnormal: v['isAbnormal'],
-                  when: om['prioritizedInstantDisplay'],
-                  whenIso: om['prioritizedInstantISO'],
-                  provider: om['orderProviderName'],
-                  resultType: om['resultType'],
-                  comments: (v['providerComments'] as { content?: string }[] | undefined)?.map(
-                    (c) => c.content,
-                  ),
-                });
-              }),
-        ),
-       });
+      return jsonResult(
+        await patients.readAs(client, async () => {
+          const raw = await client.api('test-results/GetList');
+          return project(raw, compact, 'test-results/GetList', (r: {
+              // `newResults` is a MAP keyed by an opaque result handle, not an array.
+              newResults?: Record<string, Record<string, unknown>>;
+            }) =>
+              r.newResults === undefined
+                ? undefined
+                : Object.values(r.newResults).map((v) => {
+                    const om = (v['orderMetadata'] ?? {}) as Record<string, unknown>;
+                    return tidy({
+                      name: v['name'],
+                      abnormal: v['isAbnormal'],
+                      when: om['prioritizedInstantDisplay'],
+                      whenIso: om['prioritizedInstantISO'],
+                      provider: om['orderProviderName'],
+                      resultType: om['resultType'],
+                      comments: (v['providerComments'] as { content?: string }[] | undefined)?.map(
+                        (c) => c.content,
+                      ),
+                    });
+                  }),
+            );
+        }),
+      );
     },
   );
 }

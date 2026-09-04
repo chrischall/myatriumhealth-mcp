@@ -18,8 +18,11 @@ export function registerAccountTools(
       inputSchema: {},
     },
     async () => {
-      const patient = await patients.ensure(client);
-      return jsonResult({ patient, data: await client.api('health-summary/FetchHealthSummary') });
+      return jsonResult(
+        await patients.readAs(client, async () => {
+          return await client.api('health-summary/FetchHealthSummary');
+        }),
+      );
     },
   );
 
@@ -33,8 +36,11 @@ export function registerAccountTools(
       inputSchema: {},
     },
     async () => {
-      const patient = await patients.ensure(client);
-      return jsonResult({ patient, data: await client.api('conversations/GetFoldersList') });
+      return jsonResult(
+        await patients.readAs(client, async () => {
+          return await client.api('conversations/GetFoldersList');
+        }),
+      );
     },
   );
 
@@ -54,38 +60,39 @@ export function registerAccountTools(
       },
     },
     async ({ folder, compact }) => {
-      const patient = await patients.ensure(client);
-      const raw = await client.listConversations(folder);
-      return jsonResult({ patient, data:
-        project(raw, compact, 'conversations/GetConversationList', (r: {
-          conversations?: Record<string, unknown>[];
-          users?: Record<string, { name?: string }>;
-        }) =>
-          r.conversations?.map((c) => {
-            const msgs = (c['messages'] as Record<string, unknown>[] | undefined) ?? [];
-            const first = msgs[0] ?? {};
-            // The per-message author is NOT resolvable: `author.displayName` is
-            // empty on every conversation observed, and `author.wprKey` does not
-            // match any key in the response's `users` map. The thread's
-            // `userKeys` DO resolve, so participants are what can honestly be
-            // reported here.
-            const participants = ((c['userKeys'] as string[] | undefined) ?? [])
-              .map((k) => r.users?.[k]?.name)
-              .filter((n): n is string => typeof n === 'string' && n !== '');
-            return tidy({
-              subject: c['subject'],
-              participants: participants.length > 0 ? participants : undefined,
-              preview: c['previewText'],
-              messageType: c['messageType'],
-              date: first['deliveryInstantISO'],
-              unread: msgs.some((m) => m['isUnread'] === true),
-              hasAttachments: c['hasAttachments'],
-              urgent: c['hasUrgentMsgs'],
-              messageCount: msgs.length,
-            });
-          }),
-        ),
-       });
+      return jsonResult(
+        await patients.readAs(client, async () => {
+          const raw = await client.listConversations(folder);
+          return project(raw, compact, 'conversations/GetConversationList', (r: {
+              conversations?: Record<string, unknown>[];
+              users?: Record<string, { name?: string }>;
+            }) =>
+              r.conversations?.map((c) => {
+                const msgs = (c['messages'] as Record<string, unknown>[] | undefined) ?? [];
+                const first = msgs[0] ?? {};
+                // The per-message author is NOT resolvable: `author.displayName` is
+                // empty on every conversation observed, and `author.wprKey` does not
+                // match any key in the response's `users` map. The thread's
+                // `userKeys` DO resolve, so participants are what can honestly be
+                // reported here.
+                const participants = ((c['userKeys'] as string[] | undefined) ?? [])
+                  .map((k) => r.users?.[k]?.name)
+                  .filter((n): n is string => typeof n === 'string' && n !== '');
+                return tidy({
+                  subject: c['subject'],
+                  participants: participants.length > 0 ? participants : undefined,
+                  preview: c['previewText'],
+                  messageType: c['messageType'],
+                  date: first['deliveryInstantISO'],
+                  unread: msgs.some((m) => m['isUnread'] === true),
+                  hasAttachments: c['hasAttachments'],
+                  urgent: c['hasUrgentMsgs'],
+                  messageCount: msgs.length,
+                });
+              }),
+            );
+        }),
+      );
     },
   );
 
@@ -104,41 +111,42 @@ export function registerAccountTools(
       },
     },
     async ({ compact }) => {
-      const patient = await patients.ensure(client);
-      const raw = await client.legacy('Insurance/Coverages/GetCoverages', {}, {
-        isStandAlone: 'true',
-      });
-      return jsonResult({ patient, data:
-        project(raw, compact, 'Insurance/Coverages/GetCoverages', (r: Record<string, unknown>) => {
-          const buckets = [
-            'ActiveCoverages',
-            'CoveragesPendingSubmission',
-            'CoveragesPendingDeletion',
-            'CoveragesInReview',
-            'CoveragesInVerification',
-          ] as const;
-          if (!buckets.some((b) => Array.isArray(r[b]))) return undefined;
-          return buckets.flatMap((b) =>
-            ((r[b] as Record<string, unknown>[] | undefined) ?? []).map((c) =>
-              tidy({
-                bucket: b,
-                coverage: c['CoverageName'],
-                plan: c['PlanName'],
-                payor: c['PayorName'],
-                memberId: c['MemberId'],
-                groupNumber: c['GroupNumber'],
-                status: c['Status'],
-                type: c['CoverageType'],
-                effective: c['FormattedEffectiveDate'],
-                ends: c['FormattedEndDate'],
-                subscriber: c['SubscriberName'],
-                patientIsSubscriber: c['PatientIsSubscriber'],
-                termed: c['Termed'],
-              }),
-            ),
-          );
+      return jsonResult(
+        await patients.readAs(client, async () => {
+          const raw = await client.legacy('Insurance/Coverages/GetCoverages', {}, {
+            isStandAlone: 'true',
+          });
+          return project(raw, compact, 'Insurance/Coverages/GetCoverages', (r: Record<string, unknown>) => {
+              const buckets = [
+                'ActiveCoverages',
+                'CoveragesPendingSubmission',
+                'CoveragesPendingDeletion',
+                'CoveragesInReview',
+                'CoveragesInVerification',
+              ] as const;
+              if (!buckets.some((b) => Array.isArray(r[b]))) return undefined;
+              return buckets.flatMap((b) =>
+                ((r[b] as Record<string, unknown>[] | undefined) ?? []).map((c) =>
+                  tidy({
+                    bucket: b,
+                    coverage: c['CoverageName'],
+                    plan: c['PlanName'],
+                    payor: c['PayorName'],
+                    memberId: c['MemberId'],
+                    groupNumber: c['GroupNumber'],
+                    status: c['Status'],
+                    type: c['CoverageType'],
+                    effective: c['FormattedEffectiveDate'],
+                    ends: c['FormattedEndDate'],
+                    subscriber: c['SubscriberName'],
+                    patientIsSubscriber: c['PatientIsSubscriber'],
+                    termed: c['Termed'],
+                  }),
+                ),
+              );
+            });
         }),
-       });
+      );
     },
   );
 
@@ -152,27 +160,28 @@ export function registerAccountTools(
       inputSchema: {},
     },
     async () => {
-      const patient = await patients.ensure(client);
-      const raw = (await client.api('search/LoadMenuInfo')) as {
-        submenus?: { name?: string; menuItems?: { name?: string }[] }[];
-      };
-      // This endpoint currently answers 302 to /Home/FiveHundred — a server
-      // error, not an empty menu. Reported rather than flattened to []: an
-      // empty feature list reads as "this account has no features", which is a
-      // different and wrong answer. Cause not yet established.
-      if (raw === null || typeof raw !== 'object' || !Array.isArray(raw.submenus)) {
-        throw new McpToolError('MyAtriumHealth did not return a menu.', {
-          hint:
-            'search/LoadMenuInfo is failing server-side (302 to Home/FiveHundred). Use ' +
-            'mah_list_patients and the individual readers; the menu is not required for them.',
-        });
-      }
-      return jsonResult({ patient, data:
-        (raw.submenus ?? []).map((s) => ({
-          menu: s.name,
-          items: (s.menuItems ?? []).map((i) => i.name),
-        })),
-       });
+      return jsonResult(
+        await patients.readAs(client, async () => {
+          const raw = (await client.api('search/LoadMenuInfo')) as {
+            submenus?: { name?: string; menuItems?: { name?: string }[] }[];
+          };
+          // This endpoint currently answers 302 to /Home/FiveHundred — a server
+          // error, not an empty menu. Reported rather than flattened to []: an
+          // empty feature list reads as "this account has no features", which is a
+          // different and wrong answer. Cause not yet established.
+          if (raw === null || typeof raw !== 'object' || !Array.isArray(raw.submenus)) {
+            throw new McpToolError('MyAtriumHealth did not return a menu.', {
+              hint:
+                'search/LoadMenuInfo is failing server-side (302 to Home/FiveHundred). Use ' +
+                'mah_list_patients and the individual readers; the menu is not required for them.',
+            });
+          }
+          return (raw.submenus ?? []).map((s) => ({
+              menu: s.name,
+              items: (s.menuItems ?? []).map((i) => i.name),
+            }));
+        }),
+      );
     },
   );
 }

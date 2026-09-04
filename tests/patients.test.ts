@@ -128,3 +128,72 @@ describe('re-assertion after a silent re-login', () => {
       .toBeGreaterThan(1);
   });
 });
+
+describe('a sign-in that happens DURING a read', () => {
+  it('never labels the account holder\'s data with the selected patient', async () => {
+    // The reviewed defect: confirming the patient BEFORE the read is not
+    // enough, because the transport replays an expired session by signing in
+    // again — so the very read being labelled can be the one that resets the
+    // portal to the account holder.
+    process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-midread-${Date.now()}.json`;
+    const { PatientContext } = await import('../src/patient-context.js');
+    const ctx = new PatientContext();
+
+    const state = { name: 'Chris', age: 45 as number | null };
+    const client = {
+      page: async (p: string) => {
+        if (p.startsWith('ProxySwitch/SwitchContext')) {
+          state.name = 'Finn';
+          state.age = 7;
+        }
+        return page;
+      },
+      api: async () => ({ patientFirstName: state.name, header: { patientAge: state.age } }),
+    };
+
+    await ctx.select(client as never, {
+      id: 'WP-24child', displayName: 'Finn', isAccountHolder: false, relationship: 'proxy',
+    });
+
+    let reads = 0;
+    const result = await ctx.readAs(client as never, async () => {
+      reads++;
+      if (reads === 1) {
+        // The read triggers a re-login: portal silently reverts, session changes.
+        state.name = 'Chris';
+        state.age = 45;
+        ctx.invalidate();
+        return 'account-holder-data';
+      }
+      return 'proxy-data';
+    });
+
+    // It must NOT return the first read labelled "Finn".
+    expect(result).toEqual({ patient: 'Finn', data: 'proxy-data' });
+    expect(reads).toBe(2);
+  });
+
+  it('refuses rather than guessing when the context keeps resetting', async () => {
+    process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-thrash-${Date.now()}.json`;
+    const { PatientContext } = await import('../src/patient-context.js');
+    const ctx = new PatientContext();
+    const state = { name: 'Chris', age: 45 as number | null };
+    const client = {
+      page: async (p: string) => {
+        if (p.startsWith('ProxySwitch/SwitchContext')) { state.name = 'Finn'; state.age = 7; }
+        return page;
+      },
+      api: async () => ({ patientFirstName: state.name, header: { patientAge: state.age } }),
+    };
+    await ctx.select(client as never, {
+      id: 'WP-24child', displayName: 'Finn', isAccountHolder: false, relationship: 'proxy',
+    });
+
+    await expect(
+      ctx.readAs(client as never, async () => {
+        ctx.invalidate();
+        return 'whatever';
+      }),
+    ).rejects.toThrow(/could not be established/);
+  });
+});

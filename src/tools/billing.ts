@@ -28,17 +28,20 @@ export function registerBillingTools(
     // so this parses the server-rendered page. If the markup changes the parse
     // yields [], which is why `raw` exists as an escape hatch.
     async ({ raw }) => {
-      const patient = await patients.ensure(client);
-      const html = await client.page('Billing/Summary');
-      if (raw) return jsonResult({ patient, data:{ html } });
-      const accounts = parseBillingAccounts(html);
-      if (accounts.length === 0) {
-        console.error(
-          '[myatriumhealth-mcp] Billing/Summary: no account cards matched — the page ' +
-            'markup may have changed. Re-run with raw:true to inspect.',
-        );
-      }
-      return jsonResult({ patient, data:accounts });
+      return jsonResult(
+        await patients.readAs(client, async () => {
+          const html = await client.page('Billing/Summary');
+          if (raw) return { html };
+          const accounts = parseBillingAccounts(html);
+          if (accounts.length === 0) {
+            console.error(
+              '[myatriumhealth-mcp] Billing/Summary: no account cards matched — the page ' +
+                'markup may have changed. Re-run with raw:true to inspect.',
+            );
+          }
+          return accounts;
+        }),
+      );
     },
   );
 }

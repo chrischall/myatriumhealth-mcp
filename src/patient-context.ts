@@ -54,6 +54,9 @@ export class PatientContext {
    */
   private applied: PatientIdentity | undefined;
 
+  /** Bumped by [invalidate]. Lets a read notice a sign-in that happened mid-flight. */
+  private generation = 0;
+
   private desired(): StoredContext | null {
     return this.store.load() ?? null;
   }
@@ -127,8 +130,41 @@ export class PatientContext {
     return identity.displayName;
   }
 
-  /** Forget the in-process belief, e.g. after the transport re-authenticated. */
+  /** Forget the in-process belief, e.g. after a new session was established. */
   invalidate(): void {
     this.applied = undefined;
+    this.generation++;
+  }
+
+  /**
+   * Run a read and label it with the patient it ACTUALLY came from.
+   *
+   * Confirming before the read is not enough. The transport replays an expired
+   * session by signing in again, which returns the portal to the account
+   * holder — so the very read being labelled can be the one that resets the
+   * context, and it would come back as the account holder's chart under the
+   * selected patient's name. Instead the session generation is captured before
+   * the read and checked after: if a sign-in happened in between, the context
+   * is re-applied and the read is taken again.
+   *
+   * Once. A second disagreement means something is resetting the context
+   * faster than it can be used, and returning data whose owner cannot be
+   * established is the one outcome worth refusing.
+   */
+  async readAs<T>(
+    client: MyAtriumHealthClient,
+    read: () => Promise<T>,
+  ): Promise<{ patient: string; data: T }> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const patient = await this.ensure(client);
+      const generation = this.generation;
+      const data = await read();
+      if (this.generation === generation) return { patient, data };
+    }
+    throw new McpToolError(
+      'MyAtriumHealth re-authenticated while reading, so the patient this data belongs ' +
+        'to could not be established.',
+      { hint: 'Run mah_get_patient_context, then retry the read.' },
+    );
   }
 }

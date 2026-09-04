@@ -119,11 +119,11 @@ const client = new MyAtriumHealthClient({ transport });
 // Which patient the readers serve. Its own store, re-asserted after any
 // re-sign-in, because a fresh login puts the portal back on the account holder.
 const patients = new PatientContext();
-if (transport instanceof ServerTransport) {
-  // A fresh sign-in puts the portal back on the account holder, so the cached
-  // "who is being served" must not outlive the session it was confirmed in.
-  transport.onReauthenticated(() => patients.invalidate());
-}
+// A fresh sign-in puts the portal back on the account holder, so the cached
+// "who is being served" must not outlive the session it was confirmed in.
+// Subscribed on the AUTH object, which every sign-in path goes through —
+// including mah_sign_in and mah_verify_code, which never touch the transport.
+auth?.onSessionEstablished(() => patients.invalidate());
 
 await runMcp({
   name: 'myatriumhealth-mcp',
