@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { jsonResult, toolAnnotations } from '@chrischall/mcp-utils';
+import { viewArg, viewResponse } from '../view.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MyAtriumHealthClient } from '../client.js';
 import { project, tidy } from './_project.js';
@@ -15,18 +16,19 @@ export function registerVisitTools(
       description: 'List upcoming and in-progress MyAtriumHealth appointments.',
       annotations: toolAnnotations({ readOnly: true }),
       inputSchema: {
+        view: viewArg(),
         timeZone: z
           .string()
           .default('America/New_York')
           .describe('IANA time zone used to bucket appointments.'),
       },
     },
-    async ({ timeZone }) => {
+    async ({ timeZone, view }) => {
       const raw = await client.legacy('Visits/VisitsList/LoadUpcoming', {
         timeZone,
         ComponentNumber: '5',
       });
-      return jsonResult(raw);
+      return viewResponse(view, raw);
     },
   );
 

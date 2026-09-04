@@ -42,7 +42,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@chrischall/mcp-utils": "^0.20.0",
+    "@chrischall/mcp-utils": "^0.23.0",
     "@fetchproxy/server": "^2.1.0",
     "@modelcontextprotocol/sdk": "^1.22.0",
     "node-html-parser": "^9.0.3",
