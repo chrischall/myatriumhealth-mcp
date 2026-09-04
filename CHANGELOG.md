@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.3.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.2.0...v0.3.0) (2026-09-04)
+
+
+### Features
+
+* one response rung for every reader — `view` replaces `compact` ([#27](https://github.com/chrischall/myatriumhealth-mcp/issues/27)) ([7062b34](https://github.com/chrischall/myatriumhealth-mcp/commit/7062b3443238e6334eae64f950f5608a93186f3d))
+* read a proxy patient's chart, not just the account holder's ([#23](https://github.com/chrischall/myatriumhealth-mcp/issues/23)) ([0d9227f](https://github.com/chrischall/myatriumhealth-mcp/commit/0d9227fe7ad9d0e821ff3e3f3609be18637c549a))
+* **tools:** compact by default — strip media URLs, and minify every response ([#21](https://github.com/chrischall/myatriumhealth-mcp/issues/21)) ([3f3284a](https://github.com/chrischall/myatriumhealth-mcp/commit/3f3284a6115bbbd7f34356bbf387bd3a712d1910))
+
+
+### Bug Fixes
+
+* **deps:** mcp-utils 0.23.1, so compact strips camelCase media keys ([#29](https://github.com/chrischall/myatriumhealth-mcp/issues/29)) ([f488292](https://github.com/chrischall/myatriumhealth-mcp/commit/f4882928412fb324336e6658dd361646c5e5ef49))
+* read a .env, so configured credentials actually select bridge-less mode ([#25](https://github.com/chrischall/myatriumhealth-mcp/issues/25)) ([b8311ad](https://github.com/chrischall/myatriumhealth-mcp/commit/b8311ad39f77a7b82a1067de032bf86b0e98a5c5))
+* **tools:** actually minify, and pick up @chrischall/mcp-utils 0.23.2 ([#31](https://github.com/chrischall/myatriumhealth-mcp/issues/31)) ([1a6bb46](https://github.com/chrischall/myatriumhealth-mcp/commit/1a6bb4670caab61b18cc6c592c6f06de14808114))
+* use the library's string-aware walk to read the patient switcher ([#30](https://github.com/chrischall/myatriumhealth-mcp/issues/30)) ([759405e](https://github.com/chrischall/myatriumhealth-mcp/commit/759405ebe3d4b86b64ab7a1c1cea0530560c2779))
+
+
+### Documentation
+
+* an idle session is what was measured, not a lifetime ([#20](https://github.com/chrischall/myatriumhealth-mcp/issues/20)) ([5f1fd18](https://github.com/chrischall/myatriumhealth-mcp/commit/5f1fd18dac13f0e22031e5a5d8c2b09e3d90ca53))
+* put a measured ceiling on the MyChart session lifetime ([#18](https://github.com/chrischall/myatriumhealth-mcp/issues/18)) ([3b07501](https://github.com/chrischall/myatriumhealth-mcp/commit/3b0750159149031518d3620ad5317549e3074908))
+
 ## [0.2.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.1.1...v0.2.0) (2026-09-04)
 
 

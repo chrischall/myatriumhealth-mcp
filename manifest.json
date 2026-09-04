@@ -3,8 +3,8 @@
   "manifest_version": "0.3",
   "name": "myatriumhealth-mcp",
   "display_name": "MyAtriumHealth",
-  "version": "0.2.0",
-  "description": "Read MyAtriumHealth (Atrium Health's Epic MyChart patient portal) \u2014 test results, medications, allergies, immunizations, health issues and visits \u2014 through your signed-in browser tab.",
+  "version": "0.3.0",
+  "description": "Read MyAtriumHealth (Atrium Health's Epic MyChart patient portal) — test results, medications, allergies, immunizations, health issues and visits — through your signed-in browser tab.",
   "author": {
     "name": "Chris Chall",
     "email": "chris.c.hall@gmail.com",
