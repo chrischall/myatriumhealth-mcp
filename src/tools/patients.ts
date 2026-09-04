@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { jsonResult, toolAnnotations, McpToolError } from '@chrischall/mcp-utils';
+import { McpToolError, minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
 import { z } from 'zod';
 import type { MyAtriumHealthClient } from '../client.js';
 import type { PatientContext } from '../patient-context.js';
@@ -20,7 +20,7 @@ export function registerPatientTools(
       annotations: toolAnnotations({ readOnly: true }),
       inputSchema: {},
     },
-    async () => jsonResult(await listPatients(client)),
+    async () => minifiedResult(await listPatients(client)),
   );
 
   server.registerTool(
@@ -38,7 +38,7 @@ export function registerPatientTools(
       // different patient than the next read returns.
       await patients.ensure(client);
       const serving = await whoAmI(client);
-      return jsonResult({
+      return minifiedResult({
         servingNow: serving.displayName,
         age: serving.age,
         isDefault: patients.isDefault(),
@@ -70,7 +70,7 @@ export function registerPatientTools(
         });
       }
       const identity = await patients.select(client, target);
-      return jsonResult({
+      return minifiedResult({
         activePatient: identity.displayName,
         age: identity.age,
         relationship: target.relationship,

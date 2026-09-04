@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { jsonResult, toolAnnotations } from '@chrischall/mcp-utils';
+import { minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { MfaRequiredError, type MyAtriumHealthAuth, type DeliveryMethod } from '../auth.js';
 
@@ -24,7 +24,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
       // isSignedIn() first: discovering a live session settles mfaPending, so
       // read the flag AFTER, or this reports a challenge that is already moot.
       const resumable = await auth.isSignedIn();
-      return jsonResult({
+      return minifiedResult({
         sessionResumable: resumable,
         verificationPending: auth.mfaPending,
         trustedDeviceStored: hasDevice,
@@ -48,10 +48,10 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
     async () => {
       try {
         await auth.login();
-        return jsonResult({ signedIn: true });
+        return minifiedResult({ signedIn: true });
       } catch (e) {
         if (e instanceof MfaRequiredError) {
-          return jsonResult({
+          return minifiedResult({
             signedIn: false,
             verificationRequired: true,
             channels: e.methods,
@@ -84,7 +84,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
     },
     async ({ channel, resend }) => {
       await auth.sendCode(channel as DeliveryMethod, resend);
-      return jsonResult({
+      return minifiedResult({
         sent: true,
         channel,
         nextStep: 'Ask the user for the code they received, then call mah_verify_code.',
@@ -112,7 +112,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
     },
     async ({ code, rememberDevice }) => {
       const r = await auth.verifyCode(code, rememberDevice);
-      return jsonResult({
+      return minifiedResult({
         verified: true,
         trustedDeviceStored: r.remembered,
         nextStep:
