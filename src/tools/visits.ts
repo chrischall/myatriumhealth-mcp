@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { jsonResult, toolAnnotations } from '@chrischall/mcp-utils';
-import { viewArg, viewResponse } from '../view.js';
+import { isCompact, viewArg, viewResponse } from '../view.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MyAtriumHealthClient } from '../client.js';
 import type { PatientContext } from '../patient-context.js';
@@ -48,14 +48,12 @@ export function registerVisitTools(
           .string()
           .optional()
           .describe('ISO instant to page back from. Defaults to now.'),
-        compact: z
-          .boolean()
-          .default(false)
-          .describe('Flatten to one row per visit with date, bucket and CSN.'),
+        view: viewArg(),
       },
     },
-    async ({ before, compact }) => {
-      return jsonResult(
+    async ({ before, view }) => {
+      return viewResponse(
+        view,
         await patients.readAs(client, async () => {
           const raw = await client.legacy('Visits/VisitsList/LoadPast', {
             loadpast: '1',
@@ -63,7 +61,7 @@ export function registerVisitTools(
             oldestRenderedDate: before ?? new Date().toISOString(),
             ComponentNumber: '7',
           });
-          return project(raw, compact, 'Visits/VisitsList/LoadPast', (r: {
+          return project(raw, isCompact(view), 'Visits/VisitsList/LoadPast', (r: {
               List?: Record<
                 string,
                 { Organization?: { OrganizationName?: string }; List?: Record<string, unknown>[] }

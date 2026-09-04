@@ -11,21 +11,24 @@ import { minifiedResult, resolveView, stripMediaUrls, viewParam, type View } fro
  * contain — no captured fixture, no documented field list. So nothing here can
  * honestly say which of MyAtriumHealth's fields matter and which are noise.
  *
- * Compact therefore does the one projection that needs no such knowledge: it
- * strips image and avatar URLs. That is SUBTRACTIVE, so it cannot lose a field
- * nobody knew about — the failure an invented field list would risk, where a
- * record comes back with holes in it and reads like a verified answer.
+ * Compact therefore always does the one projection that needs no such
+ * knowledge: it strips image and avatar URLs. That is SUBTRACTIVE, so it cannot
+ * lose a field nobody knew about — the failure an invented field list would
+ * risk, where a record comes back with holes in it and reads like a verified
+ * answer.
  *
- * When a real payload can be captured, a field projection belongs here beside
- * this one and will save considerably more. Until then this is the honest
- * ceiling, and this docblock says so rather than implying a shape was checked.
+ * Several listing endpoints DO have a projection that was derived from their
+ * real payloads ({@link project}), and for those compact reduces each record to
+ * those fields as well. The distinction is deliberate: a field list is applied
+ * only where one was actually established, never inferred.
  */
 export const MAH_VIEWS = ['compact', 'full'] as const;
 
 const NOTE =
-  'compact strips image/avatar URLs from the response; "full" returns MyAtriumHealth\'s payload untouched. ' +
-  'No field projection: this server has no verified record of which MyAtriumHealth fields matter, and inventing ' +
-  'one would risk dropping a field a caller needs.';
+  'compact strips image/avatar URLs, and on the listing endpoints with a verified projection ' +
+  '(allergies, health issues, immunizations, medications, goals, test results, visits) also reduces each ' +
+  'record to its clinically meaningful fields; "full" returns MyAtriumHealth\'s payload untouched. ' +
+  'Where no verified projection exists, compact only strips URLs rather than inventing a field list.';
 
 /** The `view` parameter every read tool in this server takes. */
 export const viewArg = (): ReturnType<typeof viewParam> => viewParam(MAH_VIEWS, { note: NOTE });
@@ -36,6 +39,11 @@ export const viewArg = (): ReturnType<typeof viewParam> => viewParam(MAH_VIEWS, 
  * Only ever called from a READ tool. A write's response is a receipt — an id,
  * a status — with nothing to strip and everything to keep.
  */
+/** Whether the caller asked for the reduced rung. The default is `compact`. */
+export function isCompact(view: string | undefined): boolean {
+  return resolveView(view, MAH_VIEWS) === 'compact';
+}
+
 export function viewResponse(view: string | undefined, data: unknown): ReturnType<typeof minifiedResult> {
   const rung: View = resolveView(view, MAH_VIEWS);
   return minifiedResult(rung === 'compact' ? stripMediaUrls(data) : data);

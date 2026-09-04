@@ -146,10 +146,17 @@ stated rather than inferred.
 | `mah_get_patient_context` | Which patient the readers are serving, confirmed with the portal |
 | `mah_set_active_patient` | Point every reader at one of those patients; survives restarts |
 
-Listing tools take `compact` (default `false`). The raw envelopes are large — test
-results ~33 KB, medications ~30 KB — so pass `compact: true` when browsing. If the
-portal's shape drifts, the projection warns to stderr and returns the raw response
-rather than an empty list.
+Every reading tool takes `view`: `compact` (the default) or `full`. The raw envelopes
+are large — test results ~33 KB, medications ~30 KB — so `compact` is what you want for
+browsing, and `full` returns MyAtriumHealth's payload untouched.
+
+`compact` always strips image and avatar URLs, which is subtractive and cannot drop a
+field nobody knew about. On the listing endpoints whose real payloads were captured
+(allergies, health issues, immunizations, medications, goals, test results, visits) it
+additionally reduces each record to its clinically meaningful fields. That field list is
+applied only where one was actually established — never inferred. If the portal's shape
+drifts, the projection warns to stderr and returns the raw response rather than an
+empty list.
 
 ## Sessions expire, and they do it quietly
 

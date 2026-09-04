@@ -4,13 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MyAtriumHealthClient } from '../client.js';
 import type { PatientContext } from '../patient-context.js';
 import { project, tidy } from './_project.js';
-
-const compactArg = {
-  compact: z
-    .boolean()
-    .default(false)
-    .describe('Project each record to its clinically meaningful fields. Responses are large; prefer true for browsing.'),
-};
+import { isCompact, viewArg, viewResponse } from '../view.js';
 
 export function registerRecordTools(
   server: McpServer,
@@ -22,13 +16,14 @@ export function registerRecordTools(
     {
       description: 'List allergies and their reactions from the MyAtriumHealth health summary.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: compactArg,
+      inputSchema: { view: viewArg() },
     },
-    async ({ compact }) => {
-      return jsonResult(
+    async ({ view }) => {
+      return viewResponse(
+        view,
         await patients.readAs(client, async () => {
           const raw = await client.api('allergies/LoadAllergies');
-          return project(raw, compact, 'allergies/LoadAllergies', (r: {
+          return project(raw, isCompact(view), 'allergies/LoadAllergies', (r: {
               dataList?: { allergyItem?: Record<string, unknown> }[];
             }) =>
               r.dataList?.map((d) => {
@@ -53,13 +48,14 @@ export function registerRecordTools(
     {
       description: 'List the problem list (current health issues) recorded in MyAtriumHealth.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: compactArg,
+      inputSchema: { view: viewArg() },
     },
-    async ({ compact }) => {
-      return jsonResult(
+    async ({ view }) => {
+      return viewResponse(
+        view,
         await patients.readAs(client, async () => {
           const raw = await client.api('HealthIssues/LoadHealthIssuesData');
-          return project(raw, compact, 'HealthIssues/LoadHealthIssuesData', (r: {
+          return project(raw, isCompact(view), 'HealthIssues/LoadHealthIssuesData', (r: {
               dataList?: { healthIssueItem?: Record<string, unknown> }[];
             }) =>
               r.dataList?.map((d) => {
@@ -77,13 +73,14 @@ export function registerRecordTools(
     {
       description: 'List immunizations and administration dates, grouped by organization.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: compactArg,
+      inputSchema: { view: viewArg() },
     },
-    async ({ compact }) => {
-      return jsonResult(
+    async ({ view }) => {
+      return viewResponse(
+        view,
         await patients.readAs(client, async () => {
           const raw = await client.api('immunizations/LoadImmunizations');
-          return project(raw, compact, 'immunizations/LoadImmunizations', (r: {
+          return project(raw, isCompact(view), 'immunizations/LoadImmunizations', (r: {
               organizationImmunizationList?: {
                 organization?: { OrganizationName?: string };
                 orgImmunizations?: Record<string, unknown>[];
@@ -110,13 +107,14 @@ export function registerRecordTools(
       description:
         'List current medications: name, patient-friendly name, dosing instructions (sig) and prescriber.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: compactArg,
+      inputSchema: { view: viewArg() },
     },
-    async ({ compact }) => {
-      return jsonResult(
+    async ({ view }) => {
+      return viewResponse(
+        view,
         await patients.readAs(client, async () => {
           const raw = await client.api('medications/LoadMedicationsPage');
-          return project(raw, compact, 'medications/LoadMedicationsPage', (r: {
+          return project(raw, isCompact(view), 'medications/LoadMedicationsPage', (r: {
               communityMembers?: {
                 prescriptionList?: { prescriptions?: Record<string, unknown>[] };
               }[];
@@ -146,13 +144,14 @@ export function registerRecordTools(
         'List care team providers — name, specialty and relationship — from this ' +
         'organization and from linked outside organizations.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: compactArg,
+      inputSchema: { view: viewArg() },
     },
-    async ({ compact }) => {
-      return jsonResult(
+    async ({ view }) => {
+      return viewResponse(
+        view,
         await patients.readAs(client, async () => {
           const raw = await client.careTeam();
-          return project(raw, compact, 'Clinical/CareTeam/Load', (r2: {
+          return project(raw, isCompact(view), 'Clinical/CareTeam/Load', (r2: {
               internal?: { ProvidersList?: Record<string, unknown>[] };
               external?: { ProvidersList?: Record<string, unknown>[] };
             }) => {
@@ -191,13 +190,14 @@ export function registerRecordTools(
     {
       description: 'List patient goals tracked in MyAtriumHealth.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: compactArg,
+      inputSchema: { view: viewArg() },
     },
-    async ({ compact }) => {
-      return jsonResult(
+    async ({ view }) => {
+      return viewResponse(
+        view,
         await patients.readAs(client, async () => {
           const raw = await client.api('goals/LoadPatientGoals');
-          return project(raw, compact, 'goals/LoadPatientGoals', (r: {
+          return project(raw, isCompact(view), 'goals/LoadPatientGoals', (r: {
               patientGoals?: Record<string, unknown>[];
             }) =>
               r.patientGoals?.map((g) =>

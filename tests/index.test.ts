@@ -95,3 +95,37 @@ describe('tool roster', () => {
     }
   });
 });
+
+describe('the view parameter', () => {
+  /** name -> inputSchema keys, for every tool the readers register. */
+  function schemas(): Map<string, string[]> {
+    const out = new Map<string, string[]>();
+    const server = {
+      registerTool: (name: string, config: { inputSchema?: Record<string, unknown> }) => {
+        out.set(name, Object.keys(config.inputSchema ?? {}));
+      },
+    } as unknown as Parameters<typeof registerRecordTools>[0];
+    const client = new MyAtriumHealthClient({ transport: stubTransport });
+    const patients = new PatientContext();
+    registerRecordTools(server, client, patients);
+    registerResultTools(server, client, patients);
+    registerVisitTools(server, client, patients);
+    registerAccountTools(server, client, patients);
+    registerBillingTools(server, client, patients);
+    return out;
+  }
+
+  it('is taken by every reader, so one response shape governs them all', () => {
+    // The inconsistency this migration removed: `view` on one visits tool and
+    // `compact` on its sibling meant two words for one idea in one file.
+    for (const [name, keys] of schemas()) {
+      expect(keys, `${name} does not take view`).toContain('view');
+    }
+  });
+
+  it('has no reader still taking the retired compact flag', () => {
+    for (const [name, keys] of schemas()) {
+      expect(keys, `${name} still takes compact`).not.toContain('compact');
+    }
+  });
+});
