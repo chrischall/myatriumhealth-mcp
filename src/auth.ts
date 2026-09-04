@@ -152,6 +152,25 @@ export class MyAtriumHealthAuth {
    * attack. Cleared by a successful {@link verifyCode}.
    */
   mfaPending = false;
+
+  private readonly sessionListeners: (() => void)[] = [];
+
+  /**
+   * Called whenever a NEW session is established — by [login], by [verifyCode],
+   * or by a transport replaying an expired one.
+   *
+   * On this class rather than on the transport because the sign-in TOOLS call
+   * login/verifyCode directly: a hook on the transport misses them, and the
+   * patient context then keeps labelling reads with a patient the portal is no
+   * longer serving.
+   */
+  onSessionEstablished(fn: () => void): void {
+    this.sessionListeners.push(fn);
+  }
+
+  private announceSession(): void {
+    for (const fn of this.sessionListeners) fn();
+  }
   /**
    * The credentials were refused. Symmetric to {@link mfaPending}, and for the
    * same reason: without it every tool call re-submits the password, so one
@@ -411,6 +430,7 @@ export class MyAtriumHealthAuth {
     }
     this.mfaPending = false;
     this.persist();
+    this.announceSession();
     return { signedIn: true };
   }
 
@@ -494,6 +514,7 @@ export class MyAtriumHealthAuth {
     // Persist the jar either way: the session established by verifying is worth
     // keeping even if the device token turns out not to be honoured.
     this.persist(rememberDevice && typeof id === 'string' ? id : '');
+    this.announceSession();
     return { remembered: rememberDevice && typeof id === 'string' && id !== '' };
   }
 }

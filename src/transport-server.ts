@@ -14,6 +14,7 @@ export class ServerTransport implements MahTransport {
 
   constructor(private readonly auth: MyAtriumHealthAuth) {}
 
+
   async start(): Promise<void> {}
   async close(): Promise<void> {}
 

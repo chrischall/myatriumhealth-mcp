@@ -3,12 +3,14 @@ import { jsonResult, toolAnnotations } from '@chrischall/mcp-utils';
 import { viewArg, viewResponse } from '../view.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MyAtriumHealthClient } from '../client.js';
+import type { PatientContext } from '../patient-context.js';
 import { project, tidy } from './_project.js';
 
 /** Epic's visit endpoints are the older form-encoded generation. */
 export function registerVisitTools(
   server: McpServer,
   client: MyAtriumHealthClient,
+  patients: PatientContext,
 ): void {
   server.registerTool(
     'mah_list_upcoming_visits',
@@ -24,11 +26,15 @@ export function registerVisitTools(
       },
     },
     async ({ timeZone, view }) => {
-      const raw = await client.legacy('Visits/VisitsList/LoadUpcoming', {
-        timeZone,
-        ComponentNumber: '5',
-      });
-      return viewResponse(view, raw);
+      return viewResponse(
+        view, await patients.readAs(client, async () => {
+          const raw = await client.legacy('Visits/VisitsList/LoadUpcoming', {
+            timeZone,
+            ComponentNumber: '5',
+          });
+          return raw;
+        }),
+      );
     },
   );
 
@@ -49,33 +55,35 @@ export function registerVisitTools(
       },
     },
     async ({ before, compact }) => {
-      const raw = await client.legacy('Visits/VisitsList/LoadPast', {
-        loadpast: '1',
-        searchString: '',
-        oldestRenderedDate: before ?? new Date().toISOString(),
-        ComponentNumber: '7',
-      });
       return jsonResult(
-        project(raw, compact, 'Visits/VisitsList/LoadPast', (r: {
-          List?: Record<
-            string,
-            { Organization?: { OrganizationName?: string }; List?: Record<string, unknown>[] }
-          >;
-        }) =>
-          r.List === undefined
-            ? undefined
-            : Object.values(r.List).flatMap((g) =>
-                (g.List ?? []).map((v) =>
-                  tidy({
-                    organization: g.Organization?.OrganizationName,
-                    date: v['PrimaryDate'],
-                    bucket: v['PastVisitBucket'],
-                    csn: v['Csn'],
-                    unread: v['IsNotViewed'],
-                  }),
-                ),
-              ),
-        ),
+        await patients.readAs(client, async () => {
+          const raw = await client.legacy('Visits/VisitsList/LoadPast', {
+            loadpast: '1',
+            searchString: '',
+            oldestRenderedDate: before ?? new Date().toISOString(),
+            ComponentNumber: '7',
+          });
+          return project(raw, compact, 'Visits/VisitsList/LoadPast', (r: {
+              List?: Record<
+                string,
+                { Organization?: { OrganizationName?: string }; List?: Record<string, unknown>[] }
+              >;
+            }) =>
+              r.List === undefined
+                ? undefined
+                : Object.values(r.List).flatMap((g) =>
+                    (g.List ?? []).map((v) =>
+                      tidy({
+                        organization: g.Organization?.OrganizationName,
+                        date: v['PrimaryDate'],
+                        bucket: v['PastVisitBucket'],
+                        csn: v['Csn'],
+                        unread: v['IsNotViewed'],
+                      }),
+                    ),
+                  ),
+            );
+        }),
       );
     },
   );

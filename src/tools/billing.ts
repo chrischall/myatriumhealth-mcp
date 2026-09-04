@@ -2,11 +2,13 @@ import { z } from 'zod';
 import { jsonResult, toolAnnotations } from '@chrischall/mcp-utils';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MyAtriumHealthClient } from '../client.js';
+import type { PatientContext } from '../patient-context.js';
 import { parseBillingAccounts } from '../parse.js';
 
 export function registerBillingTools(
   server: McpServer,
   client: MyAtriumHealthClient,
+  patients: PatientContext,
 ): void {
   server.registerTool(
     'mah_list_billing_accounts',
@@ -26,16 +28,20 @@ export function registerBillingTools(
     // so this parses the server-rendered page. If the markup changes the parse
     // yields [], which is why `raw` exists as an escape hatch.
     async ({ raw }) => {
-      const html = await client.page('Billing/Summary');
-      if (raw) return jsonResult({ html });
-      const accounts = parseBillingAccounts(html);
-      if (accounts.length === 0) {
-        console.error(
-          '[myatriumhealth-mcp] Billing/Summary: no account cards matched — the page ' +
-            'markup may have changed. Re-run with raw:true to inspect.',
-        );
-      }
-      return jsonResult(accounts);
+      return jsonResult(
+        await patients.readAs(client, async () => {
+          const html = await client.page('Billing/Summary');
+          if (raw) return { html };
+          const accounts = parseBillingAccounts(html);
+          if (accounts.length === 0) {
+            console.error(
+              '[myatriumhealth-mcp] Billing/Summary: no account cards matched — the page ' +
+                'markup may have changed. Re-run with raw:true to inspect.',
+            );
+          }
+          return accounts;
+        }),
+      );
     },
   );
 }
