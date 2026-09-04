@@ -31,7 +31,7 @@ export function registerVisitTools(
         timeZone,
         ComponentNumber: '5',
       });
-      return viewResponse(view, raw);
+      return viewResponse(view, { patient, data: raw });
     },
   );
 

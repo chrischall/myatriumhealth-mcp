@@ -33,6 +33,10 @@ export function registerPatientTools(
       inputSchema: {},
     },
     async () => {
+      // Re-assert first: after a restart the readers would apply the stored
+      // selection, so reporting the portal's pre-switch state would describe a
+      // different patient than the next read returns.
+      await patients.ensure(client);
       const serving = await whoAmI(client);
       return jsonResult({
         servingNow: serving.displayName,

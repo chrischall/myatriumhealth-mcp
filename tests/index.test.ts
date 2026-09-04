@@ -7,6 +7,8 @@ import { MyAtriumHealthAuth } from '../src/auth.js';
 import { registerAccountTools } from '../src/tools/account.js';
 import { registerAuthTools } from '../src/tools/auth.js';
 import { registerBillingTools } from '../src/tools/billing.js';
+import { registerPatientTools } from '../src/tools/patients.js';
+import { PatientContext } from '../src/patient-context.js';
 import { registerRecordTools } from '../src/tools/records.js';
 import { registerResultTools } from '../src/tools/results.js';
 import { registerVisitTools } from '../src/tools/visits.js';
@@ -26,11 +28,13 @@ function registeredToolNames(): string[] {
     },
   } as unknown as Parameters<typeof registerRecordTools>[0];
   const client = new MyAtriumHealthClient({ transport: stubTransport });
-  registerRecordTools(server, client);
-  registerResultTools(server, client);
-  registerVisitTools(server, client);
-  registerAccountTools(server, client);
-  registerBillingTools(server, client);
+  const patients = new PatientContext();
+  registerRecordTools(server, client, patients);
+  registerResultTools(server, client, patients);
+  registerVisitTools(server, client, patients);
+  registerAccountTools(server, client, patients);
+  registerBillingTools(server, client, patients);
+  registerPatientTools(server, client, patients);
   // Auth tools are conditional at runtime (credentials configured) but must be
   // in the manifest, or an mcpb host would never show the sign-in flow.
   const auth = new MyAtriumHealthAuth({
@@ -53,6 +57,7 @@ describe('tool roster', () => {
       'mah_auth_status',
       'mah_get_health_summary',
       'mah_get_menu',
+      'mah_get_patient_context',
       'mah_list_allergies',
       'mah_list_billing_accounts',
       'mah_list_care_team',
@@ -64,9 +69,11 @@ describe('tool roster', () => {
       'mah_list_message_folders',
       'mah_list_messages',
       'mah_list_past_visits',
+      'mah_list_patients',
       'mah_list_test_results',
       'mah_list_upcoming_visits',
       'mah_send_verification_code',
+      'mah_set_active_patient',
       'mah_sign_in',
       'mah_verify_code',
     ]);

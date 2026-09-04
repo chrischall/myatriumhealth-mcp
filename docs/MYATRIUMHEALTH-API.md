@@ -198,3 +198,43 @@ field as optional. See `src/parse.ts`.
 `Documents` renders no document list on the landing page (964 characters of visible text)
 and issues no XHR. It most likely requires selecting a category first; that flow has not
 been captured.
+
+
+## Patient switching (proxy access)
+
+The portal lets one login open several charts — the account holder's, plus anyone who
+has granted them proxy access. Captured from a live signed-in session.
+
+**Discovery has no endpoint.** The switcher's own list is embedded in any signed-in page
+as repeated calls to
+`EpicPx.ReactContext.personalizations.proxySubjects.push({ proxyColor, displayName,
+photoMagicId, ids: [{type, value}, …] })`. `displayName` is a FIRST NAME only. The
+account holder is the one subject carrying a `MYCHARTLOGIN` id.
+
+**Switching** is `GET ProxySwitch/SwitchContext?eaccountid=<id>&redirecturl=<path>`,
+found in the `react-core` bundle, which builds it as
+`{ eaccountid, redirecturl }` whenever a link carries an `eaccountid`.
+
+> **Only `WPRINTERNAL` is accepted, measured rather than assumed.** Each subject
+> publishes seventeen id types — `C`, `CEID`, `CHS`, `E`, `EPI`, `EXTERNAL`, `FHIR`,
+> `IDX`, `IDXUNPAD`, `INTERNAL`, `K`, `M`, `MYCHARTLOGIN`, `R`, `S`, `STAR`,
+> `WPRINTERNAL`. All seventeen were tried against a real proxy subject. Sixteen return
+> **HTTP 302 and silently leave the context unchanged**; only `WPRINTERNAL` switches.
+> Nothing in the response distinguishes the two outcomes, so an id chosen by plausibility
+> yields a switch that reports success and then serves the wrong patient's chart.
+
+**Confirming a switch.** `POST api/health-summary/FetchHealthSummary` returns
+`patientFirstName` and `header.patientAge` for whoever is currently being served — the
+only cheap way to ask the portal who it thinks you are. Both fields are needed: the
+first name alone cannot separate two subjects sharing one.
+
+**The context lives in the session cookie.** A switch rotates
+`_Host-MyChartNetAuthenticationTicket4myatriumhealth`, so it is carried by the stored
+jar and survives a restart — and a fresh sign-in silently returns to the account holder.
+
+**Ordinary reads rotate nothing.** A session polled every three minutes for 208 minutes
+changed no cookie value; only a context switch did.
+
+**Observed effect.** With the account holder selected, `conversations/GetConversationList`
+returned 14 threads; with a proxy subject selected, 3 — none of which appeared in the
+account holder's list. Switching back returned exactly the original 14.

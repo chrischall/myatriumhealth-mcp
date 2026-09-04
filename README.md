@@ -114,7 +114,11 @@ call prints a pair code — approve it once in the Transporter popup.
 
 ## Tools
 
-All read-only — this surface exposes no writes.
+All read-only except `mah_set_active_patient`, which changes only which patient this
+connector reads — it writes nothing to any chart.
+
+Every reading tool returns `{ patient, data }`, so the chart a response belongs to is
+stated rather than inferred.
 
 | Tool | What it returns |
 |---|---|
@@ -138,6 +142,9 @@ All read-only — this surface exposes no writes.
 | `mah_sign_in` | Sign in server-side; reports verification channels if a code is needed *(bridge-less only)* |
 | `mah_send_verification_code` | Ask the portal to send a code to the account holder *(bridge-less only)* |
 | `mah_verify_code` | Submit the code the user received *(bridge-less only)* |
+| `mah_list_patients` | The patients this login can open — the account holder and any proxy subjects |
+| `mah_get_patient_context` | Which patient the readers are serving, confirmed with the portal |
+| `mah_set_active_patient` | Point every reader at one of those patients; survives restarts |
 
 Listing tools take `compact` (default `false`). The raw envelopes are large — test
 results ~33 KB, medications ~30 KB — so pass `compact: true` when browsing. If the

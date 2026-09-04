@@ -11,8 +11,25 @@ export class ServerTransport implements MahTransport {
   private loggedIn = false;
   /** Concurrent callers share one login — a burst must not spend N attempts. */
   private inFlight: Promise<void> | undefined;
+  private readonly reauthListeners: (() => void)[] = [];
 
   constructor(private readonly auth: MyAtriumHealthAuth) {}
+
+  /**
+   * Called whenever a NEW session is established, as opposed to an existing one
+   * being reused.
+   *
+   * The patient context needs this: signing in again silently returns the
+   * portal to the account holder, so anything caching "who is being served"
+   * has to be told, or it will label one patient's chart with another's name.
+   */
+  onReauthenticated(fn: () => void): void {
+    this.reauthListeners.push(fn);
+  }
+
+  private announceReauth(): void {
+    for (const fn of this.reauthListeners) fn();
+  }
 
   async start(): Promise<void> {}
   async close(): Promise<void> {}
@@ -55,6 +72,7 @@ export class ServerTransport implements MahTransport {
         }
         await this.auth.login();
         this.loggedIn = true;
+        this.announceReauth();
       } finally {
         this.inFlight = undefined;
       }

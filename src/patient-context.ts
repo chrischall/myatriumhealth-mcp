@@ -1,10 +1,20 @@
 import { createFileStatePersistence, resolveStateFile } from '@chrischall/mcp-utils/session';
 import type { MyAtriumHealthClient } from './client.js';
-import { listPatients, switchTo, whoAmI, type Patient, type PatientIdentity } from './patients.js';
+import { McpToolError } from '@chrischall/mcp-utils';
+import {
+  listPatients,
+  sameIdentity,
+  switchTo,
+  whoAmI,
+  type Patient,
+  type PatientIdentity,
+} from './patients.js';
 
 interface StoredContext {
   patientId: string;
   displayName: string;
+  /** Learned on selection. A second discriminator: the portal gives first names only. */
+  age: number | null;
 }
 
 /**
@@ -29,13 +39,20 @@ export class PatientContext {
     validate: (raw) => {
       const r = raw as Partial<StoredContext> | null;
       return r && typeof r.patientId === 'string' && typeof r.displayName === 'string'
-        ? (r as StoredContext)
+        ? ({ ...r, age: typeof r.age === 'number' ? r.age : null } as StoredContext)
         : null;
     },
   });
 
-  /** What the portal was last CONFIRMED to be serving, in this process. */
-  private applied: string | undefined;
+  /**
+   * What the portal was last CONFIRMED to be serving in this process.
+   *
+   * Safe to trust only because [invalidate] is wired to the transport's
+   * re-authentication: a fresh sign-in silently returns the portal to the
+   * account holder, and without that wiring this cache is exactly the bug it
+   * looks like — one patient's chart labelled with another's name.
+   */
+  private applied: PatientIdentity | undefined;
 
   private desired(): StoredContext | null {
     return this.store.load() ?? null;
@@ -53,9 +70,13 @@ export class PatientContext {
       // an unconfigured connector and a deliberately-reset one behave alike.
       this.store.clear();
     } else {
-      this.store.save({ patientId: patient.id, displayName: patient.displayName });
+      this.store.save({
+        patientId: patient.id,
+        displayName: patient.displayName,
+        age: identity.age,
+      });
     }
-    this.applied = patient.displayName;
+    this.applied = identity;
     return identity;
   }
 
@@ -69,28 +90,40 @@ export class PatientContext {
    */
   async ensure(client: MyAtriumHealthClient): Promise<string> {
     const want = this.desired();
-    if (want === null) {
-      this.applied = undefined;
-      return (await whoAmI(client)).displayName || 'account holder';
+
+    // One confirmation per session, not per read. The cache is cleared on
+    // re-authentication, so a connector that never switches patients pays a
+    // single FetchHealthSummary rather than one per tool call.
+    if (this.applied !== undefined) {
+      if (want === null || sameIdentity(this.applied, { displayName: want.displayName, age: want.age })) {
+        return this.applied.displayName;
+      }
     }
-    if (this.applied === want.displayName) return want.displayName;
 
     const serving = await whoAmI(client);
-    if (serving.displayName.trim().toLowerCase() === want.displayName.trim().toLowerCase()) {
-      this.applied = want.displayName;
-      return want.displayName;
+    if (want === null) {
+      this.applied = serving;
+      return serving.displayName || 'account holder';
     }
+    if (sameIdentity(serving, { displayName: want.displayName, age: want.age })) {
+      this.applied = serving;
+      return serving.displayName;
+    }
+
     const patient = (await listPatients(client)).find((p) => p.id === want.patientId);
     if (patient === undefined) {
       this.store.clear();
       this.applied = undefined;
-      throw new Error(
-        `${want.displayName} is no longer available to this login, so the selection was ` +
-          'cleared. Run mah_list_patients to see who is.',
+      throw new McpToolError(
+        `${want.displayName} is no longer available to this login, so the selection was cleared.`,
+        { hint: 'Run mah_list_patients to see who this login can open, then select one.' },
       );
     }
-    const identity = await switchTo(client, patient);
-    this.applied = identity.displayName;
+    const identity = await switchTo(client, patient, {
+      displayName: want.displayName,
+      age: want.age,
+    });
+    this.applied = identity;
     return identity.displayName;
   }
 

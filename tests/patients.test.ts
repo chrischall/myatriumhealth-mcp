@@ -4,7 +4,7 @@ import { parseProxySubjects } from '../src/patients.js';
 // Shape taken from the live signed-in Home page; ids are invented. The switcher
 // publishes each subject as a push() call, and every id type EXCEPT WPRINTERNAL
 // is silently ignored by ProxySwitch/SwitchContext — verified against all
-// seventeen on a real account (docs/MYATRIUMHEALTH-API.md).
+// seventeen on a real account (docs/MYATRIUMHEALTH-API.md, "Patient switching").
 const subject = (name: string, wpr: string, login: boolean): string => `
   EpicPx.ReactContext.personalizations.proxySubjects.push({proxyColor:1,displayName:"${name}",photoMagicId:"",ids:[
     {type:"C",value:"WP-24aaa"},
@@ -75,5 +75,56 @@ describe('the default patient', () => {
     expect(ctx.isDefault()).toBe(true);
     await expect(ctx.ensure(client as never)).resolves.toBe('Chris');
     expect(client.calls.some((c) => c.includes('SwitchContext'))).toBe(false);
+  });
+});
+
+describe('re-assertion after a silent re-login', () => {
+  function clientServing(name: string, age: number | null) {
+    const calls: string[] = [];
+    const state = { name, age };
+    return {
+      calls,
+      state,
+      page: async (p: string) => {
+        calls.push(p);
+        if (p.startsWith('ProxySwitch/SwitchContext')) {
+          state.name = 'Finn';
+          state.age = 7;
+        }
+        return page;
+      },
+      api: async () => ({
+        patientFirstName: state.name,
+        header: { patientAge: state.age },
+      }),
+    };
+  }
+
+  it('re-switches after invalidate rather than trusting the cached name', async () => {
+    // The defect this exists for: ServerTransport replays an expired session by
+    // signing in again, which silently returns the portal to the account
+    // holder. A cache that outlived that would label the account holder's
+    // chart with the child's name — the worst failure this feature can have.
+    process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-reauth-${Date.now()}.json`;
+    const { PatientContext } = await import('../src/patient-context.js');
+    const ctx = new PatientContext();
+    const client = clientServing('Chris', 45);
+
+    await ctx.select(client as never, {
+      id: 'WP-24child',
+      displayName: 'Finn',
+      isAccountHolder: false,
+      relationship: 'proxy',
+    });
+    expect(await ctx.ensure(client as never)).toBe('Finn');
+
+    // The portal silently reverts, exactly as a re-login does.
+    client.state.name = 'Chris';
+    client.state.age = 45;
+    ctx.invalidate();
+
+    expect(await ctx.ensure(client as never)).toBe('Finn');
+    expect(client.calls.filter((c) => c.startsWith('ProxySwitch/SwitchContext')).length)
+      .toBeGreaterThan(1);
   });
 });

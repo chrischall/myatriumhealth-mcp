@@ -4,7 +4,7 @@
   "name": "myatriumhealth-mcp",
   "display_name": "MyAtriumHealth",
   "version": "0.2.0",
-  "description": "Read MyAtriumHealth (Atrium Health's Epic MyChart patient portal) — test results, medications, allergies, immunizations, health issues and visits — through your signed-in browser tab.",
+  "description": "Read MyAtriumHealth (Atrium Health's Epic MyChart patient portal) \u2014 test results, medications, allergies, immunizations, health issues and visits \u2014 through your signed-in browser tab.",
   "author": {
     "name": "Chris Chall",
     "email": "chris.c.hall@gmail.com",
@@ -114,6 +114,18 @@
     {
       "name": "mah_verify_code",
       "description": "Submit the code the user received; stores the session so restarts resume"
+    },
+    {
+      "name": "mah_list_patients",
+      "description": "List the patients this login can open: the account holder plus anyone who granted proxy access."
+    },
+    {
+      "name": "mah_get_patient_context",
+      "description": "Report which patient the reading tools are currently returning data for."
+    },
+    {
+      "name": "mah_set_active_patient",
+      "description": "Point every reading tool at one of the patients from mah_list_patients."
     }
   ],
   "compatibility": {

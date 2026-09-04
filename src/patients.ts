@@ -10,7 +10,7 @@ import type { MyAtriumHealthClient } from './client.js';
  * accepted by the switcher: every other type returns the same HTTP 302 and
  * silently leaves the context where it was, which is the worst possible
  * failure — a switch that looks like it worked and serves the wrong chart.
- * Measured across all seventeen (see docs/MYATRIUMHEALTH-API.md).
+ * Measured across all seventeen (docs/MYATRIUMHEALTH-API.md, "Patient switching").
  */
 export interface Patient {
   id: string;
@@ -102,12 +102,20 @@ export async function listPatients(client: MyAtriumHealthClient): Promise<Patien
 export async function switchTo(
   client: MyAtriumHealthClient,
   patient: Patient,
+  expected?: PatientIdentity,
 ): Promise<PatientIdentity> {
   await client.page(
     `ProxySwitch/SwitchContext?eaccountid=${encodeURIComponent(patient.id)}&redirecturl=Home`,
   );
   const now = await whoAmI(client);
-  if (!sameName(now.displayName, patient.displayName)) {
+  // Name AND age when an age is known, because the portal publishes only a
+  // FIRST name: two subjects called "Sam" would otherwise let a switch that
+  // did nothing confirm as success. Two subjects sharing a first name AND an
+  // age remain indistinguishable from this signal alone.
+  const ok = expected === undefined
+    ? sameName(now.displayName, patient.displayName)
+    : sameIdentity(now, expected);
+  if (!ok) {
     throw new McpToolError(
       `MyAtriumHealth did not switch to ${patient.displayName}; it is still serving ` +
         `${now.displayName || 'an unknown patient'}.`,
@@ -123,4 +131,11 @@ export async function switchTo(
 
 function sameName(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/** Same person, as far as the portal will tell us: first name plus age. */
+export function sameIdentity(a: PatientIdentity, b: PatientIdentity): boolean {
+  if (!sameName(a.displayName, b.displayName)) return false;
+  if (a.age === null || b.age === null) return true;
+  return a.age === b.age;
 }
