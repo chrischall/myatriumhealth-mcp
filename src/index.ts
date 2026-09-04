@@ -13,7 +13,7 @@
 // Every data tool is read-only; only the sign-in tools mutate anything, and what
 // they mutate is the local session.
 
-import { runMcp, readEnvVar, readPortEnv } from '@chrischall/mcp-utils';
+import { loadDotenvSafely, runMcp, readEnvVar, readPortEnv } from '@chrischall/mcp-utils';
 import { createFileStatePersistence, resolveStateFile } from '@chrischall/mcp-utils/session';
 import { MyAtriumHealthAuth, type DeviceRecord } from './auth.js';
 import { MyAtriumHealthClient } from './client.js';
@@ -32,6 +32,32 @@ import { registerResultTools } from './tools/results.js';
 import { registerVisitTools } from './tools/visits.js';
 import { VERSION } from './version.js';
 
+// Read a .env before deciding anything: without this the credentials most
+// people put in one are invisible, and the server silently starts a browser
+// bridge it does not need.
+//
+// Three locations, most specific first, because the server is usually launched
+// by a client from some unrelated working directory — a cwd-only lookup finds
+// nothing in exactly the case that matters. A real environment variable always
+// wins over any file (`override` stays false).
+const dotenvCandidates = [
+  readEnvVar('MAH_DOTENV'),
+  resolveStateFile({ subdir: '.myatriumhealth-mcp', envVar: 'MAH_DOTENV', fileName: '.env' }),
+].filter((p): p is string => p !== undefined);
+let dotenvLoaded = false;
+for (const path of dotenvCandidates) {
+  // Each candidate must be passed EXPLICITLY. An unset MAH_DOTENV that fell
+  // through as `undefined` would make this first call dotenv's own cwd lookup,
+  // so a stray ./.env would win over the state-directory file this ordering
+  // exists to prefer.
+  if (await loadDotenvSafely({ path })) {
+    dotenvLoaded = true;
+    break;
+  }
+}
+// ./.env last, and only as a fallback.
+if (!dotenvLoaded) await loadDotenvSafely({});
+
 const username = readEnvVar('MAH_USERNAME');
 const password = readEnvVar('MAH_PASSWORD');
 const bridgeless = username !== undefined && password !== undefined;
@@ -42,6 +68,16 @@ if (!bridgeless && (username !== undefined || password !== undefined)) {
   console.error(
     '[myatriumhealth-mcp] Only one of MAH_USERNAME / MAH_PASSWORD is set — both are ' +
       'required for bridge-less sign-in. Falling back to the browser bridge.',
+  );
+} else if (!bridgeless) {
+  // Say WHY, because the fallback is otherwise silent: starting a bridge is a
+  // visible side effect (it binds a port and needs a signed-in tab), and
+  // somebody who set credentials in a file the server never read has no way to
+  // tell that from a bridge that was genuinely wanted.
+  console.error(
+    '[myatriumhealth-mcp] No MAH_USERNAME / MAH_PASSWORD found, so the browser bridge is ' +
+      'starting. Set both (env, or a .env beside the server / MAH_DOTENV) for bridge-less ' +
+      'sign-in, which binds no port and needs no tab.',
   );
 }
 

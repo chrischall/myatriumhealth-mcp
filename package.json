@@ -45,6 +45,7 @@
     "@chrischall/mcp-utils": "^0.23.0",
     "@fetchproxy/server": "^2.1.0",
     "@modelcontextprotocol/sdk": "^1.22.0",
+    "dotenv": "^17.4.2",
     "node-html-parser": "^9.0.3",
     "zod": "^4.4.0"
   },
