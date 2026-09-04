@@ -433,3 +433,24 @@ describe('auto-review round 3 (PR #10)', () => {
     expect((auth as unknown as { mfaPending: boolean }).mfaPending).toBe(true);
   });
 });
+
+describe('a raised challenge survives a restart', () => {
+  it('persists the jar when verification is required, not only on success', async () => {
+    // The code the portal sends is bound to THIS session. If the jar lives only
+    // in memory, a hosted child that idles out between send and verify takes the
+    // session with it and the user's code fails for no visible reason.
+    const store = memoryStore();
+    const { fetchImpl } = harness((url) => {
+      if (url.includes('Authentication/Login') && !url.includes('DoLogin')) return { body: loginPage };
+      if (url.includes('DoLogin')) {
+        return { status: 302, headers: { location: '/myatriumhealth/Home', 'set-cookie': 'SESS=mid; Path=/' } };
+      }
+      if (url.includes('SecondaryValidation')) return { body: '<title>Extra Security Required</title>' };
+      return { status: 302, headers: { location: '/myatriumhealth/Authentication/SecondaryValidation' }, body: '' };
+    });
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: store });
+    await expect(auth.login()).rejects.toBeInstanceOf(MfaRequiredError);
+    const rec = store.load() as unknown as { cookies?: [string, string][] } | null;
+    expect(Object.fromEntries(rec?.cookies ?? [])['SESS']).toBe('mid');
+  });
+});
