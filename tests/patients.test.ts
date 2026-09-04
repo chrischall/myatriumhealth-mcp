@@ -16,6 +16,21 @@ const subject = (name: string, wpr: string, login: boolean): string => `
 const page = subject('Chris', 'WP-24holder', true) + subject('Finn', 'WP-24child', false);
 
 describe('patient discovery', () => {
+  it('is not fooled by a brace inside a quoted value', () => {
+    // The hand-rolled depth counter this replaced counted braces without
+    // knowing about strings, so a `}` inside a display name ended the object
+    // early and the subject lost every id after it — including the only one
+    // the switcher accepts. Names are user data; they are not guaranteed to
+    // be free of punctuation.
+    const awkward =
+      'EpicPx.ReactContext.personalizations.proxySubjects.push({proxyColor:1,' +
+      'displayName:"Bracey}",photoMagicId:"",ids:[' +
+      '{type:"C",value:"WP-24aaa"},{type:"WPRINTERNAL",value:"WP-24kid"}]});';
+    const [only] = parseProxySubjects(awkward);
+    expect(only.displayName).toBe('Bracey}');
+    expect(only.id).toBe('WP-24kid');
+  });
+
   it('finds every subject the switcher offers', () => {
     expect(parseProxySubjects(page).map((p) => p.displayName)).toEqual(['Chris', 'Finn']);
   });

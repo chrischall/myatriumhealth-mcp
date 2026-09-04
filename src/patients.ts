@@ -1,4 +1,5 @@
 import { McpToolError } from '@chrischall/mcp-utils';
+import { matchBalanced } from '@chrischall/mcp-utils/scrape';
 import type { MyAtriumHealthClient } from './client.js';
 
 /**
@@ -37,18 +38,12 @@ export function parseProxySubjects(html: string): Patient[] {
   const out: Patient[] = [];
   for (const m of html.matchAll(/personalizations\.proxySubjects\.push\(\s*\{/g)) {
     const start = html.indexOf('{', m.index + m[0].length - 1);
-    let depth = 0;
-    let end = start;
-    for (let i = start; i < html.length; i++) {
-      if (html[i] === '{') depth++;
-      else if (html[i] === '}') {
-        depth--;
-        if (depth === 0) {
-          end = i;
-          break;
-        }
-      }
-    }
+    // The library walk rather than a depth counter: it is STRING-AWARE, so a
+    // brace inside a quoted value — a display name, an id — ends the object
+    // where the object actually ends rather than where the first unmatched `}`
+    // happens to fall.
+    const end = matchBalanced(html, start);
+    if (end === -1) continue;
     const blob = html.slice(start, end + 1);
     const displayName = /displayName:"([^"]*)"/.exec(blob)?.[1];
     const ids = new Map<string, string>();
