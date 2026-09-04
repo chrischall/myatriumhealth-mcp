@@ -26,6 +26,16 @@ destinations; you pick one, the portal texts or emails **you**, and `mah_verify_
 resumes the session in place. A pending challenge is remembered, so further tool calls
 report it rather than re-submitting your password each time.
 
+**Where credentials are read from.** A real `MAH_USERNAME` / `MAH_PASSWORD` in the
+environment always wins. Failing that the server reads the first `.env` it finds, in
+this order: `MAH_DOTENV`, then `~/.myatriumhealth-mcp/.env`, then `./.env`.
+
+The middle one exists because MCP clients launch the server from whatever directory
+they happen to be in, so a `.env` sitting in a checkout is invisible to it — and the
+failure is quiet: with no credentials the server falls back to the browser bridge,
+binds a port and waits for a signed-in tab. If you meant to run bridge-less and see the
+bridge start, that is what happened; the startup line now says so.
+
 **How the session persists.** After one verification the cookie jar is stored (0600,
 bound to the account) and reused, so restarts resume the existing session rather than
 signing in again — no browser and no further codes until the session lapses.
