@@ -18,6 +18,8 @@ import { createFileStatePersistence, resolveStateFile } from '@chrischall/mcp-ut
 import { MyAtriumHealthAuth, type DeviceRecord } from './auth.js';
 import { MyAtriumHealthClient } from './client.js';
 import { ServerTransport } from './transport-server.js';
+import { PatientContext } from './patient-context.js';
+import { registerPatientTools } from './tools/patients.js';
 import { DEFAULT_PORT, FetchproxyTransport } from './transport-fetchproxy.js';
 import type { MahTransport } from './transport.js';
 import { registerAccountTools } from './tools/account.js';
@@ -114,6 +116,9 @@ if (bridgeless) {
 }
 
 const client = new MyAtriumHealthClient({ transport });
+// Which patient the readers serve. Its own store, re-asserted after any
+// re-sign-in, because a fresh login puts the portal back on the account holder.
+const patients = new PatientContext();
 
 await runMcp({
   name: 'myatriumhealth-mcp',
@@ -127,11 +132,12 @@ await runMcp({
       'This project was developed and is maintained by AI. Use at your own discretion.',
   deps: client,
   tools: [
-    (server) => registerRecordTools(server, client),
-    (server) => registerResultTools(server, client),
-    (server) => registerVisitTools(server, client),
-    (server) => registerAccountTools(server, client),
-    (server) => registerBillingTools(server, client),
+    (server) => registerRecordTools(server, client, patients),
+    (server) => registerResultTools(server, client, patients),
+    (server) => registerVisitTools(server, client, patients),
+    (server) => registerAccountTools(server, client, patients),
+    (server) => registerBillingTools(server, client, patients),
+    (server) => registerPatientTools(server, client, patients),
     ...(auth !== undefined
       ? [
           (server: Parameters<typeof registerAuthTools>[0]) => registerAuthTools(server, auth),

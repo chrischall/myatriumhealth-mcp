@@ -1,12 +1,14 @@
 import { z } from 'zod';
-import { jsonResult, toolAnnotations } from '@chrischall/mcp-utils';
+import { McpToolError, jsonResult, toolAnnotations } from '@chrischall/mcp-utils';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MyAtriumHealthClient } from '../client.js';
+import type { PatientContext } from '../patient-context.js';
 import { project, tidy } from './_project.js';
 
 export function registerAccountTools(
   server: McpServer,
   client: MyAtriumHealthClient,
+  patients: PatientContext,
 ): void {
   server.registerTool(
     'mah_get_health_summary',
@@ -15,7 +17,10 @@ export function registerAccountTools(
       annotations: toolAnnotations({ readOnly: true }),
       inputSchema: {},
     },
-    async () => jsonResult(await client.api('health-summary/FetchHealthSummary')),
+    async () => {
+      const patient = await patients.ensure(client);
+      return jsonResult({ patient, data: await client.api('health-summary/FetchHealthSummary') });
+    },
   );
 
   server.registerTool(
@@ -27,7 +32,10 @@ export function registerAccountTools(
       annotations: toolAnnotations({ readOnly: true }),
       inputSchema: {},
     },
-    async () => jsonResult(await client.api('conversations/GetFoldersList')),
+    async () => {
+      const patient = await patients.ensure(client);
+      return jsonResult({ patient, data: await client.api('conversations/GetFoldersList') });
+    },
   );
 
   server.registerTool(
@@ -46,8 +54,9 @@ export function registerAccountTools(
       },
     },
     async ({ folder, compact }) => {
+      const patient = await patients.ensure(client);
       const raw = await client.listConversations(folder);
-      return jsonResult(
+      return jsonResult({ patient, data:
         project(raw, compact, 'conversations/GetConversationList', (r: {
           conversations?: Record<string, unknown>[];
           users?: Record<string, { name?: string }>;
@@ -76,7 +85,7 @@ export function registerAccountTools(
             });
           }),
         ),
-      );
+       });
     },
   );
 
@@ -95,10 +104,11 @@ export function registerAccountTools(
       },
     },
     async ({ compact }) => {
+      const patient = await patients.ensure(client);
       const raw = await client.legacy('Insurance/Coverages/GetCoverages', {}, {
         isStandAlone: 'true',
       });
-      return jsonResult(
+      return jsonResult({ patient, data:
         project(raw, compact, 'Insurance/Coverages/GetCoverages', (r: Record<string, unknown>) => {
           const buckets = [
             'ActiveCoverages',
@@ -128,7 +138,7 @@ export function registerAccountTools(
             ),
           );
         }),
-      );
+       });
     },
   );
 
@@ -142,15 +152,27 @@ export function registerAccountTools(
       inputSchema: {},
     },
     async () => {
+      const patient = await patients.ensure(client);
       const raw = (await client.api('search/LoadMenuInfo')) as {
         submenus?: { name?: string; menuItems?: { name?: string }[] }[];
       };
-      return jsonResult(
+      // This endpoint currently answers 302 to /Home/FiveHundred — a server
+      // error, not an empty menu. Reported rather than flattened to []: an
+      // empty feature list reads as "this account has no features", which is a
+      // different and wrong answer. Cause not yet established.
+      if (raw === null || typeof raw !== 'object' || !Array.isArray(raw.submenus)) {
+        throw new McpToolError('MyAtriumHealth did not return a menu.', {
+          hint:
+            'search/LoadMenuInfo is failing server-side (302 to Home/FiveHundred). Use ' +
+            'mah_list_patients and the individual readers; the menu is not required for them.',
+        });
+      }
+      return jsonResult({ patient, data:
         (raw.submenus ?? []).map((s) => ({
           menu: s.name,
           items: (s.menuItems ?? []).map((i) => i.name),
         })),
-      );
+       });
     },
   );
 }

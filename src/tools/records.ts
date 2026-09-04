@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { jsonResult, toolAnnotations } from '@chrischall/mcp-utils';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MyAtriumHealthClient } from '../client.js';
+import type { PatientContext } from '../patient-context.js';
 import { project, tidy } from './_project.js';
 
 const compactArg = {
@@ -14,6 +15,7 @@ const compactArg = {
 export function registerRecordTools(
   server: McpServer,
   client: MyAtriumHealthClient,
+  patients: PatientContext,
 ): void {
   server.registerTool(
     'mah_list_allergies',
@@ -23,8 +25,9 @@ export function registerRecordTools(
       inputSchema: compactArg,
     },
     async ({ compact }) => {
+      const patient = await patients.ensure(client);
       const raw = await client.api('allergies/LoadAllergies');
-      return jsonResult(
+      return jsonResult({ patient, data:
         project(raw, compact, 'allergies/LoadAllergies', (r: {
           dataList?: { allergyItem?: Record<string, unknown> }[];
         }) =>
@@ -40,7 +43,7 @@ export function registerRecordTools(
             });
           }),
         ),
-      );
+       });
     },
   );
 
@@ -52,8 +55,9 @@ export function registerRecordTools(
       inputSchema: compactArg,
     },
     async ({ compact }) => {
+      const patient = await patients.ensure(client);
       const raw = await client.api('HealthIssues/LoadHealthIssuesData');
-      return jsonResult(
+      return jsonResult({ patient, data:
         project(raw, compact, 'HealthIssues/LoadHealthIssuesData', (r: {
           dataList?: { healthIssueItem?: Record<string, unknown> }[];
         }) =>
@@ -62,7 +66,7 @@ export function registerRecordTools(
             return tidy({ name: h['name'], noted: h['formattedDateNoted'] });
           }),
         ),
-      );
+       });
     },
   );
 
@@ -74,8 +78,9 @@ export function registerRecordTools(
       inputSchema: compactArg,
     },
     async ({ compact }) => {
+      const patient = await patients.ensure(client);
       const raw = await client.api('immunizations/LoadImmunizations');
-      return jsonResult(
+      return jsonResult({ patient, data:
         project(raw, compact, 'immunizations/LoadImmunizations', (r: {
           organizationImmunizationList?: {
             organization?: { OrganizationName?: string };
@@ -92,7 +97,7 @@ export function registerRecordTools(
             ),
           ),
         ),
-      );
+       });
     },
   );
 
@@ -105,8 +110,9 @@ export function registerRecordTools(
       inputSchema: compactArg,
     },
     async ({ compact }) => {
+      const patient = await patients.ensure(client);
       const raw = await client.api('medications/LoadMedicationsPage');
-      return jsonResult(
+      return jsonResult({ patient, data:
         project(raw, compact, 'medications/LoadMedicationsPage', (r: {
           communityMembers?: {
             prescriptionList?: { prescriptions?: Record<string, unknown>[] };
@@ -125,7 +131,7 @@ export function registerRecordTools(
             ),
           ),
         ),
-      );
+       });
     },
   );
 
@@ -139,8 +145,9 @@ export function registerRecordTools(
       inputSchema: compactArg,
     },
     async ({ compact }) => {
+      const patient = await patients.ensure(client);
       const raw = await client.careTeam();
-      return jsonResult(
+      return jsonResult({ patient, data:
         project(raw, compact, 'Clinical/CareTeam/Load', (r2: {
           internal?: { ProvidersList?: Record<string, unknown>[] };
           external?: { ProvidersList?: Record<string, unknown>[] };
@@ -170,7 +177,7 @@ export function registerRecordTools(
               }),
             );
         }),
-      );
+       });
     },
   );
 
@@ -182,8 +189,9 @@ export function registerRecordTools(
       inputSchema: compactArg,
     },
     async ({ compact }) => {
+      const patient = await patients.ensure(client);
       const raw = await client.api('goals/LoadPatientGoals');
-      return jsonResult(
+      return jsonResult({ patient, data:
         project(raw, compact, 'goals/LoadPatientGoals', (r: {
           patientGoals?: Record<string, unknown>[];
         }) =>
@@ -196,7 +204,7 @@ export function registerRecordTools(
             }),
           ),
         ),
-      );
+       });
     },
   );
 }

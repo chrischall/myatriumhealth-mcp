@@ -2,11 +2,13 @@ import { z } from 'zod';
 import { jsonResult, toolAnnotations } from '@chrischall/mcp-utils';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MyAtriumHealthClient } from '../client.js';
+import type { PatientContext } from '../patient-context.js';
 import { project, tidy } from './_project.js';
 
 export function registerResultTools(
   server: McpServer,
   client: MyAtriumHealthClient,
+  patients: PatientContext,
 ): void {
   server.registerTool(
     'mah_list_test_results',
@@ -23,8 +25,9 @@ export function registerResultTools(
       },
     },
     async ({ compact }) => {
+      const patient = await patients.ensure(client);
       const raw = await client.api('test-results/GetList');
-      return jsonResult(
+      return jsonResult({ patient, data:
         project(raw, compact, 'test-results/GetList', (r: {
           // `newResults` is a MAP keyed by an opaque result handle, not an array.
           newResults?: Record<string, Record<string, unknown>>;
@@ -46,7 +49,7 @@ export function registerResultTools(
                 });
               }),
         ),
-      );
+       });
     },
   );
 }

@@ -1,0 +1,126 @@
+import { McpToolError } from '@chrischall/mcp-utils';
+import type { MyAtriumHealthClient } from './client.js';
+
+/**
+ * A patient this login can open — the account holder, or someone who has given
+ * them proxy access.
+ *
+ * [id] is deliberately the subject's `WPRINTERNAL` identifier and nothing else.
+ * The portal publishes seventeen id types per subject and only that one is
+ * accepted by the switcher: every other type returns the same HTTP 302 and
+ * silently leaves the context where it was, which is the worst possible
+ * failure — a switch that looks like it worked and serves the wrong chart.
+ * Measured across all seventeen (see docs/MYATRIUMHEALTH-API.md).
+ */
+export interface Patient {
+  id: string;
+  displayName: string;
+  /** The signed-in account itself, rather than someone who granted proxy access. */
+  isAccountHolder: boolean;
+  relationship: 'self' | 'proxy';
+}
+
+/** What the portal says it is serving right now, asked rather than assumed. */
+export interface PatientIdentity {
+  displayName: string;
+  age: number | null;
+}
+
+/**
+ * Read the switcher's own list out of a signed-in page.
+ *
+ * The portal ships it as `EpicPx.ReactContext.personalizations.proxySubjects
+ * .push({...})` calls in the HTML, not as an API — there is no endpoint that
+ * lists them, so this is the source the switcher itself uses.
+ */
+export function parseProxySubjects(html: string): Patient[] {
+  const out: Patient[] = [];
+  for (const m of html.matchAll(/personalizations\.proxySubjects\.push\(\s*\{/g)) {
+    const start = html.indexOf('{', m.index + m[0].length - 1);
+    let depth = 0;
+    let end = start;
+    for (let i = start; i < html.length; i++) {
+      if (html[i] === '{') depth++;
+      else if (html[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    const blob = html.slice(start, end + 1);
+    const displayName = /displayName:"([^"]*)"/.exec(blob)?.[1];
+    const ids = new Map<string, string>();
+    for (const p of blob.matchAll(/type:"([A-Z]+)",value:"([^"]*)"/g)) ids.set(p[1], p[2]);
+    const id = ids.get('WPRINTERNAL');
+    if (displayName === undefined || id === undefined) continue;
+    // The account holder is the only subject carrying a MYCHARTLOGIN id: proxy
+    // subjects have no login of their own through this account.
+    const isAccountHolder = ids.has('MYCHARTLOGIN');
+    out.push({
+      id,
+      displayName,
+      isAccountHolder,
+      relationship: isAccountHolder ? 'self' : 'proxy',
+    });
+  }
+  return out;
+}
+
+/** Ask the portal who it is currently serving. One call, and it cannot be faked. */
+export async function whoAmI(client: MyAtriumHealthClient): Promise<PatientIdentity> {
+  const r = (await client.api('health-summary/FetchHealthSummary')) as {
+    patientFirstName?: string;
+    header?: { patientAge?: number };
+  };
+  return {
+    displayName: r?.patientFirstName ?? '',
+    age: typeof r?.header?.patientAge === 'number' ? r.header.patientAge : null,
+  };
+}
+
+export async function listPatients(client: MyAtriumHealthClient): Promise<Patient[]> {
+  const patients = parseProxySubjects(await client.page('Home'));
+  if (patients.length === 0) {
+    throw new McpToolError('Could not read the patient list from MyAtriumHealth.', {
+      hint:
+        'The switcher list is parsed out of the signed-in Home page. If the session is ' +
+        'live but this is empty, the portal markup may have changed — run mah_healthcheck.',
+    });
+  }
+  return patients;
+}
+
+/**
+ * Point the session at a patient and CONFIRM it landed.
+ *
+ * The confirmation is the point. The switcher answers 302 whether or not it
+ * understood the id, so the only way to know a switch happened is to ask the
+ * portal who it is serving afterwards.
+ */
+export async function switchTo(
+  client: MyAtriumHealthClient,
+  patient: Patient,
+): Promise<PatientIdentity> {
+  await client.page(
+    `ProxySwitch/SwitchContext?eaccountid=${encodeURIComponent(patient.id)}&redirecturl=Home`,
+  );
+  const now = await whoAmI(client);
+  if (!sameName(now.displayName, patient.displayName)) {
+    throw new McpToolError(
+      `MyAtriumHealth did not switch to ${patient.displayName}; it is still serving ` +
+        `${now.displayName || 'an unknown patient'}.`,
+      {
+        hint:
+          'Proxy access may have been withdrawn, or it may need re-verification. Run ' +
+          'mah_list_patients to see what this login can still open.',
+      },
+    );
+  }
+  return now;
+}
+
+function sameName(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}

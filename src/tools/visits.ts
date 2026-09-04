@@ -3,12 +3,14 @@ import { jsonResult, toolAnnotations } from '@chrischall/mcp-utils';
 import { viewArg, viewResponse } from '../view.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MyAtriumHealthClient } from '../client.js';
+import type { PatientContext } from '../patient-context.js';
 import { project, tidy } from './_project.js';
 
 /** Epic's visit endpoints are the older form-encoded generation. */
 export function registerVisitTools(
   server: McpServer,
   client: MyAtriumHealthClient,
+  patients: PatientContext,
 ): void {
   server.registerTool(
     'mah_list_upcoming_visits',
@@ -24,6 +26,7 @@ export function registerVisitTools(
       },
     },
     async ({ timeZone, view }) => {
+      const patient = await patients.ensure(client);
       const raw = await client.legacy('Visits/VisitsList/LoadUpcoming', {
         timeZone,
         ComponentNumber: '5',
@@ -49,13 +52,14 @@ export function registerVisitTools(
       },
     },
     async ({ before, compact }) => {
+      const patient = await patients.ensure(client);
       const raw = await client.legacy('Visits/VisitsList/LoadPast', {
         loadpast: '1',
         searchString: '',
         oldestRenderedDate: before ?? new Date().toISOString(),
         ComponentNumber: '7',
       });
-      return jsonResult(
+      return jsonResult({ patient, data:
         project(raw, compact, 'Visits/VisitsList/LoadPast', (r: {
           List?: Record<
             string,
@@ -76,7 +80,7 @@ export function registerVisitTools(
                 ),
               ),
         ),
-      );
+       });
     },
   );
 }
