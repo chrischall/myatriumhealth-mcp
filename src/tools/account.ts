@@ -4,6 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MyAtriumHealthClient } from '../client.js';
 import type { PatientContext } from '../patient-context.js';
 import { project, tidy } from './_project.js';
+import { isCompact, viewArg, viewResponse } from '../view.js';
 
 export function registerAccountTools(
   server: McpServer,
@@ -15,10 +16,11 @@ export function registerAccountTools(
     {
       description: 'Fetch the MyAtriumHealth health-summary header and action plans.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: {},
+      inputSchema: { view: viewArg() },
     },
-    async () => {
-      return jsonResult(
+    async ({ view }) => {
+      return viewResponse(
+        view,
         await patients.readAs(client, async () => {
           return await client.api('health-summary/FetchHealthSummary');
         }),
@@ -33,10 +35,11 @@ export function registerAccountTools(
         'List Message Center folders with unread and total counts. ' +
         'Folder tags seen: 1 Conversations/inbox, 2 Archive, 3/6/7 Bookmarked, Appointments, Automated.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: {},
+      inputSchema: { view: viewArg() },
     },
-    async () => {
-      return jsonResult(
+    async ({ view }) => {
+      return viewResponse(
+        view,
         await patients.readAs(client, async () => {
           return await client.api('conversations/GetFoldersList');
         }),
@@ -53,17 +56,15 @@ export function registerAccountTools(
       annotations: toolAnnotations({ readOnly: true }),
       inputSchema: {
         folder: z.number().int().default(1).describe('Folder tag, from mah_list_message_folders.'),
-        compact: z
-          .boolean()
-          .default(false)
-          .describe('Project to subject, participants, preview and date. The raw envelope is ~99 KB.'),
+        view: viewArg(),
       },
     },
-    async ({ folder, compact }) => {
-      return jsonResult(
+    async ({ folder, view }) => {
+      return viewResponse(
+        view,
         await patients.readAs(client, async () => {
           const raw = await client.listConversations(folder);
-          return project(raw, compact, 'conversations/GetConversationList', (r: {
+          return project(raw, isCompact(view), 'conversations/GetConversationList', (r: {
               conversations?: Record<string, unknown>[];
               users?: Record<string, { name?: string }>;
             }) =>
@@ -104,19 +105,17 @@ export function registerAccountTools(
         'in review, and in verification.',
       annotations: toolAnnotations({ readOnly: true }),
       inputSchema: {
-        compact: z
-          .boolean()
-          .default(false)
-          .describe('Flatten every bucket to one row per coverage, tagged with its bucket.'),
+        view: viewArg(),
       },
     },
-    async ({ compact }) => {
-      return jsonResult(
+    async ({ view }) => {
+      return viewResponse(
+        view,
         await patients.readAs(client, async () => {
           const raw = await client.legacy('Insurance/Coverages/GetCoverages', {}, {
             isStandAlone: 'true',
           });
-          return project(raw, compact, 'Insurance/Coverages/GetCoverages', (r: Record<string, unknown>) => {
+          return project(raw, isCompact(view), 'Insurance/Coverages/GetCoverages', (r: Record<string, unknown>) => {
               const buckets = [
                 'ActiveCoverages',
                 'CoveragesPendingSubmission',
@@ -157,10 +156,11 @@ export function registerAccountTools(
         'List the features this MyAtriumHealth account exposes (the portal menu). ' +
         'Useful for discovering what is available before calling other tools.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: {},
+      inputSchema: { view: viewArg() },
     },
-    async () => {
-      return jsonResult(
+    async ({ view }) => {
+      return viewResponse(
+        view,
         await patients.readAs(client, async () => {
           const raw = (await client.api('search/LoadMenuInfo')) as {
             submenus?: { name?: string; menuItems?: { name?: string }[] }[];
