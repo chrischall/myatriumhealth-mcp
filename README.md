@@ -30,15 +30,29 @@ report it rather than re-submitting your password each time.
 bound to the account) and reused, so restarts resume the existing session rather than
 signing in again — no browser and no further codes until the session lapses.
 
-**How long that lasts, measured rather than assumed:** hours, not days. Every one of
-the ten cookies MyChart sets is a *session* cookie — none carries an `expires` or
-`max-age` — so the lifetime is the server's alone and cannot be read from the jar. A
-jar last written **219 minutes** earlier no longer authenticated: the next call fell
-through to a fresh sign-in and was challenged for a code immediately. That puts the
-ceiling under ~3.6h without pinning the floor, so plan on **re-verifying a few times a
-day**, not once a week. Two things this does not change: a lapse still costs one code
-rather than a reconnect, and detection alone sends nothing — only `mah_sign_in` asks
-the portal to send anything.
+**How long that lasts, measured rather than assumed.** Every one of the ten cookies
+MyChart sets is a *session* cookie — none carries an `expires` or `max-age` — so the
+lifetime is the server's alone and cannot be read from the jar. A jar left **idle for
+219 minutes** no longer authenticated: the next call fell through to a fresh sign-in
+and was challenged for a code immediately.
+
+What that does and does not establish: it bounds an **idle** session, and says nothing
+about an active one. The measurement cannot tell an idle timeout from an absolute one,
+and portals of this kind usually expire on inactivity — so a session in steady use may
+outlive 3.6h comfortably, while one left alone will not. Plan re-verification around
+**gaps in use**, not around wall-clock age.
+
+**Why the jar is written back mid-session.** Every response's `Set-Cookie` is absorbed,
+and the jar is re-persisted whenever a value actually changed (`transport-server.ts`
+after each request; a no-op write when nothing rotated). That is not bookkeeping: if
+the portal refreshes its ticket as a session is used, the refreshed one only survives a
+process restart by reaching disk. On a scale-to-zero host — where the child exits
+between tool calls — that write-back is the whole reason an extended session is still
+there on the next call, rather than the copy frozen at sign-in.
+
+Two things none of this changes: a lapse still costs one code rather than a reconnect,
+and detection alone sends nothing — only `mah_sign_in` asks the portal to send
+anything.
 
 > **What does NOT work, measured rather than assumed:** the `RememberDeviceId` this
 > portal returns is *not* a device-tracking id it will accept back. Sending it neither
