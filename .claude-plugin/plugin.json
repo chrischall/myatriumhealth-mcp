@@ -1,7 +1,7 @@
 {
   "name": "myatriumhealth-mcp",
   "displayName": "MyAtriumHealth",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MyAtriumHealth (Epic MyChart) access for Claude — test results, medications, allergies, immunizations, visits",
   "author": {
     "name": "Chris Hall",
