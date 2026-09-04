@@ -146,10 +146,22 @@ stated rather than inferred.
 | `mah_get_patient_context` | Which patient the readers are serving, confirmed with the portal |
 | `mah_set_active_patient` | Point every reader at one of those patients; survives restarts |
 
-Listing tools take `compact` (default `false`). The raw envelopes are large — test
-results ~33 KB, medications ~30 KB — so pass `compact: true` when browsing. If the
-portal's shape drifts, the projection warns to stderr and returns the raw response
-rather than an empty list.
+Every reading tool takes `view`: `compact` (the default) or `full`. The raw envelopes
+are large — test results ~33 KB, medications ~30 KB — so `compact` is what you want for
+browsing, and `full` returns MyAtriumHealth's payload untouched.
+
+`compact` always strips image and avatar URLs, which is subtractive and cannot drop a
+field nobody knew about. Ten readers additionally reduce each record to its clinically
+meaningful fields, because their real payloads were captured and a projection derived
+from them: `mah_list_allergies`, `mah_list_health_issues`, `mah_list_immunizations`,
+`mah_list_medications`, `mah_list_care_team`, `mah_list_goals`, `mah_list_test_results`,
+`mah_list_past_visits`, `mah_list_insurance` and `mah_list_messages`.
+
+Every other reader gets the URL strip only. That field list is applied where one was
+actually established and nowhere else — the list above is generated from
+`PROJECTED_ENDPOINTS` and checked against the `project()` call sites by a test, so it
+cannot quietly drift out of step with the code. If the portal's shape drifts, the
+projection warns to stderr and returns the raw response rather than an empty list.
 
 ## Sessions expire, and they do it quietly
 

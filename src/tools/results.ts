@@ -4,6 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { MyAtriumHealthClient } from '../client.js';
 import type { PatientContext } from '../patient-context.js';
 import { project, tidy } from './_project.js';
+import { isCompact, viewArg, viewResponse } from '../view.js';
 
 export function registerResultTools(
   server: McpServer,
@@ -18,17 +19,15 @@ export function registerResultTools(
         'Individual result values load on the detail page and are not in this list.',
       annotations: toolAnnotations({ readOnly: true }),
       inputSchema: {
-        compact: z
-          .boolean()
-          .default(false)
-          .describe('Project each result to its meaningful fields. The raw envelope is ~33 KB.'),
+        view: viewArg(),
       },
     },
-    async ({ compact }) => {
-      return jsonResult(
+    async ({ view }) => {
+      return viewResponse(
+        view,
         await patients.readAs(client, async () => {
           const raw = await client.api('test-results/GetList');
-          return project(raw, compact, 'test-results/GetList', (r: {
+          return project(raw, isCompact(view), 'test-results/GetList', (r: {
               // `newResults` is a MAP keyed by an opaque result handle, not an array.
               newResults?: Record<string, Record<string, unknown>>;
             }) =>
