@@ -3,7 +3,7 @@
   "manifest_version": "0.3",
   "name": "myatriumhealth-mcp",
   "display_name": "MyAtriumHealth",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Read MyAtriumHealth (Atrium Health's Epic MyChart patient portal) — test results, medications, allergies, immunizations, health issues and visits — through your signed-in browser tab.",
   "author": {
     "name": "Chris Chall",

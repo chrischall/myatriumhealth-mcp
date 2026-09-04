@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.1.0...v0.1.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* mint.yaml described the bridge-only server that no longer exists ([#12](https://github.com/chrischall/myatriumhealth-mcp/issues/12)) ([1230ede](https://github.com/chrischall/myatriumhealth-mcp/commit/1230ede02359f2876a18ad194a879f3ee6c286ca))
+
 ## 0.1.0 (2026-09-03)
 
 
