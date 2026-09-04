@@ -40,13 +40,23 @@ import { VERSION } from './version.js';
 // by a client from some unrelated working directory — a cwd-only lookup finds
 // nothing in exactly the case that matters. A real environment variable always
 // wins over any file (`override` stays false).
-for (const path of [
+const dotenvCandidates = [
   readEnvVar('MAH_DOTENV'),
   resolveStateFile({ subdir: '.myatriumhealth-mcp', envVar: 'MAH_DOTENV', fileName: '.env' }),
-  undefined, // dotenv's own default: ./.env
-]) {
-  if (await loadDotenvSafely(path !== undefined ? { path } : {})) break;
+].filter((p): p is string => p !== undefined);
+let dotenvLoaded = false;
+for (const path of dotenvCandidates) {
+  // Each candidate must be passed EXPLICITLY. An unset MAH_DOTENV that fell
+  // through as `undefined` would make this first call dotenv's own cwd lookup,
+  // so a stray ./.env would win over the state-directory file this ordering
+  // exists to prefer.
+  if (await loadDotenvSafely({ path })) {
+    dotenvLoaded = true;
+    break;
+  }
 }
+// ./.env last, and only as a fallback.
+if (!dotenvLoaded) await loadDotenvSafely({});
 
 const username = readEnvVar('MAH_USERNAME');
 const password = readEnvVar('MAH_PASSWORD');
