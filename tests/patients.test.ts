@@ -197,3 +197,68 @@ describe('a sign-in that happens DURING a read', () => {
     ).rejects.toThrow(/could not be established/);
   });
 });
+
+describe('caching is only allowed where invalidation is possible', () => {
+  function probe(name: string) {
+    const state = { name, age: 45 as number | null };
+    let confirmations = 0;
+    return {
+      state,
+      get confirmations() { return confirmations; },
+      page: async (p: string) => {
+        if (p.startsWith('ProxySwitch/SwitchContext')) { state.name = 'Finn'; state.age = 7; }
+        return page;
+      },
+      api: async () => {
+        confirmations++;
+        return { patientFirstName: state.name, header: { patientAge: state.age } };
+      },
+    };
+  }
+
+  it('re-confirms every read through the browser bridge', async () => {
+    // The defect: through the bridge the session lives in the user's own tab
+    // and nothing announces a change — they can switch patients there
+    // themselves. A cache would be a process-lifetime claim about whose
+    // records these are.
+    process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-bridge-${Date.now()}.json`;
+    const { PatientContext } = await import('../src/patient-context.js');
+    const ctx = new PatientContext(false);
+    const client = probe('Chris');
+
+    await ctx.ensure(client as never);
+    const afterFirst = client.confirmations;
+    await ctx.ensure(client as never);
+    await ctx.ensure(client as never);
+
+    expect(client.confirmations).toBeGreaterThan(afterFirst);
+  });
+
+  it('confirms once per session when sign-ins are announced', async () => {
+    process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-cached-${Date.now()}.json`;
+    const { PatientContext } = await import('../src/patient-context.js');
+    const ctx = new PatientContext(true);
+    const client = probe('Chris');
+
+    await ctx.ensure(client as never);
+    const afterFirst = client.confirmations;
+    await ctx.ensure(client as never);
+    await ctx.ensure(client as never);
+
+    expect(client.confirmations).toBe(afterFirst);
+  });
+
+  it('labels a nameless summary consistently on every read', async () => {
+    // Cached and uncached branches must agree: the fallback was on one only,
+    // so the first read said "account holder" and the rest said "".
+    process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-noname-${Date.now()}.json`;
+    const { PatientContext } = await import('../src/patient-context.js');
+    const ctx = new PatientContext(true);
+    const client = { page: async () => page, api: async () => ({ header: {} }) };
+
+    const first = await ctx.ensure(client as never);
+    const second = await ctx.ensure(client as never);
+    expect(first).toBe('account holder');
+    expect(second).toBe(first);
+  });
+});

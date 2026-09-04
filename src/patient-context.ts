@@ -30,6 +30,18 @@ interface StoredContext {
  * preference has no business sharing a schema with a credential.
  */
 export class PatientContext {
+  /**
+   * Whether something will TELL us a new session began.
+   *
+   * True only in bridge-less mode, where [MyAtriumHealthAuth] announces every
+   * sign-in. Through the browser bridge nothing can: the session lives in the
+   * user's own tab, they may switch patients in it themselves, and no event
+   * reaches this process — so there the confirmation is repeated per read
+   * rather than cached, because a cache nothing can invalidate is a
+   * process-lifetime claim about someone's medical records.
+   */
+  constructor(private readonly sessionChangesAnnounced = false) {}
+
   private readonly store = createFileStatePersistence<StoredContext>({
     filePath: resolveStateFile({
       subdir: '.myatriumhealth-mcp',
@@ -97,9 +109,11 @@ export class PatientContext {
     // One confirmation per session, not per read. The cache is cleared on
     // re-authentication, so a connector that never switches patients pays a
     // single FetchHealthSummary rather than one per tool call.
-    if (this.applied !== undefined) {
+    if (this.sessionChangesAnnounced && this.applied !== undefined) {
       if (want === null || sameIdentity(this.applied, { displayName: want.displayName, age: want.age })) {
-        return this.applied.displayName;
+        // Same fallback as the uncached branch, or a summary without a first
+        // name labels the first read "account holder" and every later one "".
+        return this.applied.displayName || 'account holder';
       }
     }
 
