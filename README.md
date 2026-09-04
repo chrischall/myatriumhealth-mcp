@@ -151,12 +151,17 @@ are large — test results ~33 KB, medications ~30 KB — so `compact` is what y
 browsing, and `full` returns MyAtriumHealth's payload untouched.
 
 `compact` always strips image and avatar URLs, which is subtractive and cannot drop a
-field nobody knew about. On the listing endpoints whose real payloads were captured
-(allergies, health issues, immunizations, medications, goals, test results, visits) it
-additionally reduces each record to its clinically meaningful fields. That field list is
-applied only where one was actually established — never inferred. If the portal's shape
-drifts, the projection warns to stderr and returns the raw response rather than an
-empty list.
+field nobody knew about. Ten readers additionally reduce each record to its clinically
+meaningful fields, because their real payloads were captured and a projection derived
+from them: `mah_list_allergies`, `mah_list_health_issues`, `mah_list_immunizations`,
+`mah_list_medications`, `mah_list_care_team`, `mah_list_goals`, `mah_list_test_results`,
+`mah_list_past_visits`, `mah_list_insurance` and `mah_list_messages`.
+
+Every other reader gets the URL strip only. That field list is applied where one was
+actually established and nowhere else — the list above is generated from
+`PROJECTED_ENDPOINTS` and checked against the `project()` call sites by a test, so it
+cannot quietly drift out of step with the code. If the portal's shape drifts, the
+projection warns to stderr and returns the raw response rather than an empty list.
 
 ## Sessions expire, and they do it quietly
 
