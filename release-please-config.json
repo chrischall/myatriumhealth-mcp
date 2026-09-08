@@ -4,10 +4,6 @@
     ".": {
       "package-name": "@chrischall/myatriumhealth-mcp",
       "release-type": "node",
-      "include-v-in-tag": true,
-      "include-component-in-tag": false,
-      "initial-version": "0.1.0",
-      "bump-minor-pre-major": true,
       "changelog-sections": [
         {
           "type": "feat",
@@ -86,7 +82,11 @@
           "jsonpath": "$.metadata.version"
         },
         "src/version.ts"
-      ]
+      ],
+      "bump-minor-pre-major": true,
+      "initial-version": "0.1.0",
+      "include-v-in-tag": true,
+      "include-component-in-tag": false
     }
   }
 }
