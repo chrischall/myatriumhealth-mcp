@@ -137,11 +137,11 @@ stated rather than inferred.
 | `mah_list_care_team` | Care team providers, internal and external |
 | `mah_list_billing_accounts` | Billing accounts and balances (parsed from HTML) |
 | `mah_get_menu` | Which portal features this account exposes |
-| `mah_healthcheck` | Connection health — bridge status, or credential/session status in bridge-less mode |
-| `mah_auth_status` | Whether a session can be resumed and whether a device token is stored *(bridge-less only)* |
-| `mah_sign_in` | Sign in server-side; reports verification channels if a code is needed *(bridge-less only)* |
-| `mah_send_verification_code` | Ask the portal to send a code to the account holder *(bridge-less only)* |
-| `mah_verify_code` | Submit the code the user received *(bridge-less only)* |
+| `mah_healthcheck` | Connection health — bridge status when relaying, credential and session status when signing in server-side |
+| `mah_auth_status` | Whether a session can be resumed and whether a device token is stored |
+| `mah_sign_in` | Sign in server-side; reports verification channels if a code is needed *(needs credentials)* |
+| `mah_send_verification_code` | Ask the portal to send a code to the account holder *(needs credentials)* |
+| `mah_verify_code` | Submit the code the user received *(needs credentials)* |
 | `mah_list_patients` | The patients this login can open — the account holder and any proxy subjects |
 | `mah_get_patient_context` | Which patient the readers are serving, confirmed with the portal |
 | `mah_set_active_patient` | Point every reader at one of those patients; survives restarts |
