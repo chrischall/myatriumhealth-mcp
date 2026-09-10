@@ -89,6 +89,17 @@ describe('tool roster', () => {
     expect([...listed].filter((n) => !registered.has(n)), 'in manifest but not registered').toEqual([]);
   });
 
+  // The manifest is hand-maintained and only its NAMES are checked both ways,
+  // so a description can go stale silently. This one did: it read "Report
+  // fetchproxy bridge health…" for two releases after the tool stopped being
+  // bridge-specific, which is the exact mode-dependent framing the merge
+  // removed. mcpb hosts read this file and nothing else.
+  it('describes the healthcheck as covering BOTH transports', () => {
+    const d = manifestTools.find((t) => t.name === 'mah_healthcheck')?.description ?? '';
+    expect(d).toMatch(/bridge/i);
+    expect(d).toMatch(/credential/i);
+  });
+
   it('gives every manifest tool a real description', () => {
     for (const t of manifestTools) {
       expect(t.description?.trim().length, `${t.name} has no description`).toBeGreaterThan(10);

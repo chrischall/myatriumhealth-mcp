@@ -49,7 +49,7 @@
     },
     {
       "name": "mah_healthcheck",
-      "description": "Report fetchproxy bridge health and whether the portal session is signed in"
+      "description": "Report which hop is broken: the browser bridge when relaying, or the credential and session when signing in server-side"
     },
     {
       "name": "mah_list_allergies",
