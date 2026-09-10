@@ -90,8 +90,16 @@ export function registerMahHealthcheckTool(
         hostLabel: HOST,
       }),
       classifyThrown: sessionClassifier({
-        prefix: 'mah',
         hostLabel: HOST,
+        // Named, never derived. The library used to build these from the tool
+        // prefix, which happened to be right here and wrong everywhere else —
+        // simplepractice signs in with simplepractice_request_sign_in_link,
+        // kiaaccess with kia_start_login.
+        remedies: {
+          signIn: 'mah_sign_in',
+          sendCode: 'mah_send_verification_code',
+          verifyCode: 'mah_verify_code',
+        },
         verificationPending: () => auth?.mfaPending === true,
         credentialsRejected: () => auth?.credentialsRejected === true,
         hints: {
