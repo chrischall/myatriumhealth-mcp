@@ -92,6 +92,18 @@ describe('mah_healthcheck, credential arm', () => {
     expect(r.hint).toContain('MAH_PASSWORD');
   });
 
+  it('lets a refused credential outrank a pending verification', async () => {
+    // Both flags set. transport-server.ts already resolved this order —
+    // retrying a code against a password the portal refuses is futile — and
+    // the healthcheck disagreed with it until the ladder moved into mcp-utils,
+    // where the order now lives once instead of in two files.
+    const auth = authWith(LOGIN_PAGE);
+    auth.mfaPending = true;
+    auth.credentialsRejected = true;
+    const r = await healthcheck(auth);
+    expect(r.error?.kind).toBe('credential_rejected');
+  });
+
   it('reports the status when the portal answers an error', async () => {
     const r = await healthcheck(authWith('<html></html>', 503));
     expect(r.ok).toBe(false);
