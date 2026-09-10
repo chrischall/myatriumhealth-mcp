@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.4.0...v0.4.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **manifest:** the healthcheck stopped being bridge-specific two releases ago ([#44](https://github.com/chrischall/myatriumhealth-mcp/issues/44)) ([065b3cc](https://github.com/chrischall/myatriumhealth-mcp/commit/065b3cc3b036926c4d12e0f8a1a95ae5ad9eabd9))
+
 ## [0.4.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.3.0...v0.4.0) (2026-09-10)
 
 
