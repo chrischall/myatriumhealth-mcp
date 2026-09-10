@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.3.0...v0.4.0) (2026-09-10)
+
+
+### Features
+
+* **deps:** mcp-utils 0.26.0, and name the remedy tools instead of deriving them ([#43](https://github.com/chrischall/myatriumhealth-mcp/issues/43)) ([5c056f8](https://github.com/chrischall/myatriumhealth-mcp/commit/5c056f8e8e3ffc0a264b72de10d51744020cdd1d))
+* one healthcheck, and a tool surface that does not follow the environment ([#39](https://github.com/chrischall/myatriumhealth-mcp/issues/39)) ([fa4cb4a](https://github.com/chrischall/myatriumhealth-mcp/commit/fa4cb4abfac7d905a39eb35e42fe56739f52573e))
+
+
+### Bug Fixes
+
+* **deps:** bump node-html-parser from 9.0.3 to 9.0.4 in the production-dependencies group ([#37](https://github.com/chrischall/myatriumhealth-mcp/issues/37)) ([d0201a2](https://github.com/chrischall/myatriumhealth-mcp/commit/d0201a25790fc933e7978e66471a40eb4c99490f))
+* **healthcheck:** report a refused credential over a pending code, from one shared ladder ([#42](https://github.com/chrischall/myatriumhealth-mcp/issues/42)) ([bfd2718](https://github.com/chrischall/myatriumhealth-mcp/commit/bfd2718c6fedba5c3477261d4e50f99a5e36d801))
+* **healthcheck:** report the hop that actually broke, not that the fetch resolved ([#40](https://github.com/chrischall/myatriumhealth-mcp/issues/40)) ([dd9dfc1](https://github.com/chrischall/myatriumhealth-mcp/commit/dd9dfc16e9da0baab2c65884a1cd3c0810631ae1))
+
 ## [0.3.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.2.0...v0.3.0) (2026-09-04)
 
 
