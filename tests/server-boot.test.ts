@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, copyFileSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
+import { connect } from 'node:net';
 
 // End-to-end boot guard. Unit tests mock the transport, so they cannot catch
 // the two failures that actually ship broken: an eager top-level import of an
@@ -24,13 +25,23 @@ beforeAll(() => {
   }
 }, 120_000);
 
-/** Spawn the stdio server, run initialize + tools/list, resolve the tool names. */
+/**
+ * Spawn the stdio server, run initialize + tools/list, resolve the tool names.
+ *
+ * `whileRunning` is awaited after the tool list lands and BEFORE the child is
+ * killed, which is the only window in which a test can observe what the live
+ * process is holding — a port checked after the kill has already been released.
+ * It is handed an accessor for the child's stderr so far, which is how a test
+ * pins WHICH mode the child booted in now that both modes list the same tools.
+ */
 function listToolsViaStdio(
   entry: string,
   cwd: string,
   extraEnv: Record<string, string> = {},
+  whileRunning?: (stderr: () => string) => Promise<void>,
 ): Promise<string[]> {
   return new Promise((resolve, reject) => {
+    let settled = false;
     const child = spawn('node', [entry], {
       cwd,
       env: {
@@ -61,10 +72,21 @@ function listToolsViaStdio(
         } catch {
           continue;
         }
-        if (msg.id === 1 && msg.result) {
+        if (msg.id === 1 && msg.result && !settled) {
+          settled = true;
           clearTimeout(timer);
-          child.kill('SIGKILL');
-          resolve((msg.result.tools ?? []).map((x) => x.name));
+          const names = (msg.result.tools ?? []).map((x) => x.name);
+          void (async () => {
+            try {
+              await whileRunning?.(() => err);
+            } catch (e) {
+              child.kill('SIGKILL');
+              reject(e instanceof Error ? e : new Error(String(e)));
+              return;
+            }
+            child.kill('SIGKILL');
+            resolve(names);
+          })();
           return;
         }
       }
@@ -136,4 +158,104 @@ describe('server boot (built artifact)', () => {
     // (the bridge is not on the request path there), under the same name.
     expect(tools).toContain('mah_healthcheck');
   }, 30_000);
+});
+
+/** True when something accepts a TCP connection on 127.0.0.1:<port>. */
+function isListening(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host: '127.0.0.1', port });
+    const settle = (answer: boolean) => {
+      socket.destroy();
+      resolve(answer);
+    };
+    socket.setTimeout(2_000);
+    socket.on('connect', () => settle(true));
+    socket.on('timeout', () => settle(false));
+    socket.on('error', () => settle(false));
+  });
+}
+
+// A host that spawns this server WITHOUT credentials is not thereby asking for
+// a browser. mcp-host runs a principal-less child of a per-user registration on
+// prewarm, auto-update, restart and every admin-portal tool listing: it
+// handshakes, lists its tools, and never calls one.
+//
+// @fetchproxy/server defers role election and the port bind to the first verb
+// (0.5.3+), so such a child costs nothing — but its boot banner still prints
+// "listening on 127.0.0.1:<port>", which reads exactly like a bind that did not
+// happen. This pins the behaviour the banner obscures: after a full handshake
+// and tools/list, the concentrator port is still unowned.
+describe('bridge mode binds nothing at boot', () => {
+  it('handshakes and lists tools without opening the concentrator port', async () => {
+    const port = 39_732;
+    expect(await isListening(port)).toBe(false);
+    // A bare directory: no .env of any kind can reach this child, so the
+    // credential-free fallback is what is actually under test.
+    const dir = mkdtempSync(join(tmpdir(), 'mah-nobind-'));
+    try {
+      copyFileSync(BUNDLE, join(dir, 'bundle.js'));
+      let boundDuringBoot = true;
+      let banner = '';
+      const tools = await listToolsViaStdio(
+        join(dir, 'bundle.js'),
+        dir,
+        {
+          MAH_WS_PORT: String(port),
+          MAH_DOTENV: join(dir, 'absent.env'),
+          // The harness inherits this process's environment, which on a
+          // maintainer's machine may carry real credentials. Blank reads as
+          // unset, so this pins the fallback path rather than hoping for it.
+          MAH_USERNAME: '',
+          MAH_PASSWORD: '',
+        },
+        async (stderr) => {
+          boundDuringBoot = await isListening(port);
+          banner = stderr();
+        },
+      );
+      expect(tools.length).toBeGreaterThanOrEqual(MIN_TOOLS);
+      // Both modes list the same tools now, so the tool names cannot say which
+      // one booted. The stderr line can, and without it an accidental
+      // credential-mode boot would leave the port assertion below vacuous.
+      expect(banner).toContain('requests will relay');
+      expect(boundDuringBoot).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+});
+
+/** Boot in a bare directory so no ambient .env can reach the child. */
+async function toolsForMode(extra: Record<string, string>): Promise<string[]> {
+  const dir = mkdtempSync(join(tmpdir(), 'mah-mode-'));
+  try {
+    copyFileSync(BUNDLE, join(dir, 'bundle.js'));
+    return await listToolsViaStdio(join(dir, 'bundle.js'), dir, {
+      MAH_DOTENV: join(dir, 'absent.env'),
+      MAH_DEVICE_FILE: join(dir, 'device.json'),
+      MAH_USERNAME: '',
+      MAH_PASSWORD: '',
+      ...extra,
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// The tool surface must not depend on the environment the process started in.
+//
+// mcp-host collects this server's credentials per connector user, so a
+// principal-less child — the one it spawns for prewarm, auto-update, restart
+// and every admin-portal tool listing — starts with none and used to advertise
+// four fewer tools than the child a real caller gets. That list is what the
+// portal publishes as this connector's surface, and the tools missing from it
+// were mah_sign_in, mah_send_verification_code and mah_verify_code: the exact
+// three the registration's auth flow runs.
+describe('tool surface is the same in both modes', () => {
+  it('offers the same tools whether or not credentials are configured', async () => {
+    const bridge = await toolsForMode({});
+    const credential = await toolsForMode({ MAH_USERNAME: 'u', MAH_PASSWORD: 'p' });
+    expect(credential).toContain('mah_sign_in');
+    expect([...bridge].sort()).toEqual([...credential].sort());
+  }, 40_000);
 });

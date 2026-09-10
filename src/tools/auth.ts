@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
+import { McpToolError, minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { MfaRequiredError, type MyAtriumHealthAuth, type DeliveryMethod } from '../auth.js';
 
@@ -8,8 +8,35 @@ import { MfaRequiredError, type MyAtriumHealthAuth, type DeliveryMethod } from '
  * sends a code to the ACCOUNT HOLDER, and the code only enters the system when
  * they supply it. What gets stored afterwards is the portal's own
  * "remember this device" token.
+ *
+ * `auth` is undefined when no credentials are configured, i.e. when requests
+ * relay through the browser bridge instead. These tools are STILL registered
+ * then, and the reason is the hosted case: mcp-host collects this server's
+ * credentials per connector user, so the principal-less child it spawns for
+ * prewarm, auto-update, restart and every admin-portal tool listing has none —
+ * and that child's tool list is what the portal publishes as the connector's
+ * surface. Registering conditionally published a surface missing the three
+ * tools the registration's own auth flow runs. A tool surface must describe the
+ * SERVER, not the environment one process happened to start in.
+ *
+ * So the three that act refuse with the reason, and mah_auth_status answers
+ * honestly: there is no server-side session because nothing is signing in.
  */
-export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): void {
+export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth | undefined): void {
+  /** The configured account, or a refusal that names what is missing. */
+  const configured = (): MyAtriumHealthAuth => {
+    if (auth !== undefined) return auth;
+    throw new McpToolError(
+      'This server is relaying through your signed-in my.atriumhealth.org browser tab, so ' +
+        'there is nothing here to sign in to.',
+      {
+        hint:
+          'Sign in to my.atriumhealth.org in the browser instead. To have this server sign ' +
+          'in on its own — no tab, no extension — set MAH_USERNAME and MAH_PASSWORD and ' +
+          'restart it; verification stays with the account holder either way.',
+      },
+    );
+  };
   server.registerTool(
     'mah_auth_status',
     {
@@ -20,6 +47,20 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
       inputSchema: {},
     },
     async () => {
+      if (auth === undefined) {
+        // Not an error: "is there a stored session?" has a true answer here,
+        // and it is no. Throwing would make a read-only status tool fail on a
+        // correctly configured server.
+        return minifiedResult({
+          sessionResumable: false,
+          verificationPending: false,
+          trustedDeviceStored: false,
+          nextStep:
+            'This server holds no credentials and signs in to nothing — requests relay ' +
+            'through your signed-in my.atriumhealth.org tab. Run mah_healthcheck to check ' +
+            'that path.',
+        });
+      }
       const hasDevice = auth.deviceId() !== undefined;
       // isSignedIn() first: discovering a live session settles mfaPending, so
       // read the flag AFTER, or this reports a challenge that is already moot.
@@ -47,7 +88,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
     },
     async () => {
       try {
-        await auth.login();
+        await configured().login();
         return minifiedResult({ signedIn: true });
       } catch (e) {
         if (e instanceof MfaRequiredError) {
@@ -83,7 +124,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
       },
     },
     async ({ channel, resend }) => {
-      await auth.sendCode(channel as DeliveryMethod, resend);
+      await configured().sendCode(channel as DeliveryMethod, resend);
       return minifiedResult({
         sent: true,
         channel,
@@ -111,7 +152,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth): 
       },
     },
     async ({ code, rememberDevice }) => {
-      const r = await auth.verifyCode(code, rememberDevice);
+      const r = await configured().verifyCode(code, rememberDevice);
       return minifiedResult({
         verified: true,
         trustedDeviceStored: r.remembered,

@@ -25,10 +25,7 @@ import type { MahTransport } from './transport.js';
 import { registerAccountTools } from './tools/account.js';
 import { registerAuthTools } from './tools/auth.js';
 import { registerBillingTools } from './tools/billing.js';
-import {
-  registerBridgelessHealthcheckTools,
-  registerHealthcheckTools,
-} from './tools/healthcheck.js';
+import { registerMahHealthcheckTool } from './tools/healthcheck.js';
 import { registerRecordTools } from './tools/records.js';
 import { registerResultTools } from './tools/results.js';
 import { registerVisitTools } from './tools/visits.js';
@@ -72,14 +69,17 @@ if (!bridgeless && (username !== undefined || password !== undefined)) {
       'required for bridge-less sign-in. Falling back to the browser bridge.',
   );
 } else if (!bridgeless) {
-  // Say WHY, because the fallback is otherwise silent: starting a bridge is a
-  // visible side effect (it binds a port and needs a signed-in tab), and
-  // somebody who set credentials in a file the server never read has no way to
-  // tell that from a bridge that was genuinely wanted.
+  // Say WHY, because the fallback is otherwise silent: the bridge needs a
+  // signed-in tab, and somebody who set credentials in a file the server never
+  // read has no way to tell that from a bridge that was genuinely wanted.
+  //
+  // It does not say "starting", because nothing starts here. @fetchproxy/server
+  // defers role election and the port bind to the first request, so a server
+  // that is only asked for its tool list never touches the browser at all.
   console.error(
-    '[myatriumhealth-mcp] No MAH_USERNAME / MAH_PASSWORD found, so the browser bridge is ' +
-      'starting. Set both (env, or a .env beside the server / MAH_DOTENV) for bridge-less ' +
-      'sign-in, which binds no port and needs no tab.',
+    '[myatriumhealth-mcp] No MAH_USERNAME / MAH_PASSWORD found, so requests will relay ' +
+      'through your signed-in my.atriumhealth.org tab. Set both (env, or a .env beside the ' +
+      'server / MAH_DOTENV) for bridge-less sign-in, which needs no tab.',
   );
 }
 
@@ -145,15 +145,10 @@ await runMcp({
     (server) => registerAccountTools(server, client, patients),
     (server) => registerBillingTools(server, client, patients),
     (server) => registerPatientTools(server, client, patients),
-    ...(auth !== undefined
-      ? [
-          (server: Parameters<typeof registerAuthTools>[0]) => registerAuthTools(server, auth),
-          (server: Parameters<typeof registerBridgelessHealthcheckTools>[0]) =>
-            registerBridgelessHealthcheckTools(server, auth),
-        ]
-      : []),
-    ...(bridge !== undefined
-      ? [(server: Parameters<typeof registerHealthcheckTools>[0]) => registerHealthcheckTools(server, client, bridge)]
-      : []),
+    // Unconditional, in both modes. What varies is what they DO, not whether
+    // they exist — see registerAuthTools for why a tool surface that follows
+    // the environment is a bug rather than a tidiness.
+    (server) => registerAuthTools(server, auth),
+    (server) => registerMahHealthcheckTool(server, client, { auth, bridge }),
   ],
 });
