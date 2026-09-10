@@ -38,7 +38,7 @@ const NONCE_RE =
  * therefore deliberately broad, and the generic HTML fallback in `parse` names
  * authentication as a possible cause regardless.
  */
-function isAuthWall(html: string): boolean {
+export function isAuthWall(html: string): boolean {
   const title = /<title>([^<]*)<\/title>/i.exec(html)?.[1] ?? '';
   if (/Login Page/i.test(title)) return true;
   // Title-scoped on purpose. Matching `twoFactor` anywhere in the BODY looks
