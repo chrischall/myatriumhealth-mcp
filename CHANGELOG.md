@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.2](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.4.1...v0.4.2) (2026-09-10)
+
+
+### Bug Fixes
+
+* **deps:** @fetchproxy/server 2.10.0 and @chrischall/mcp-utils 0.26.1 ([#46](https://github.com/chrischall/myatriumhealth-mcp/issues/46)) ([f06ee47](https://github.com/chrischall/myatriumhealth-mcp/commit/f06ee47fdc22bf44bdfe2c08643d2c409db3cc3f))
+* **deps:** declare the peer floors mcp-utils 0.26.1 requires ([#48](https://github.com/chrischall/myatriumhealth-mcp/issues/48)) ([e27899c](https://github.com/chrischall/myatriumhealth-mcp/commit/e27899c6697bba3cd80ab3ff4b0bddfb9ef71d17))
+
 ## [0.4.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.4.0...v0.4.1) (2026-09-10)
 
 
