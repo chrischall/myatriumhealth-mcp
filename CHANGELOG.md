@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.4.2...v0.4.3) (2026-09-11)
+
+
+### Bug Fixes
+
+* **deps:** @fetchproxy/server 2.11.3, so the hosted extension pin persists ([#49](https://github.com/chrischall/myatriumhealth-mcp/issues/49)) ([21fcd43](https://github.com/chrischall/myatriumhealth-mcp/commit/21fcd43be6d49e84109d1318d5ac225c33ab1602))
+
 ## [0.4.2](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.4.1...v0.4.2) (2026-09-10)
 
 
