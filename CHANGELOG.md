@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.4](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.4.3...v0.4.4) (2026-09-15)
+
+
+### Bug Fixes
+
+* **deps:** @fetchproxy/server 3.0.1 — capped peer frames, logged load drops, atomic identity writes ([#52](https://github.com/chrischall/myatriumhealth-mcp/issues/52)) ([b9a3def](https://github.com/chrischall/myatriumhealth-mcp/commit/b9a3def7d5ff055cde7ae4513450a3ea916f6069))
+
 ## [0.4.3](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.4.2...v0.4.3) (2026-09-14)
 
 
