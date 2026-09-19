@@ -59,9 +59,17 @@ describe('version sync', () => {
     const cfg = readJson('release-please-config.json').packages['.'];
     // With no prior tag release-please applies its initial-release default and
     // proposes 1.0.0 — a brand-new server advertising a stable API it has not
-    // earned. `initial-version` pins the first release, and
-    // `bump-minor-pre-major` stops a later breaking change on 0.x from
-    // silently declaring 1.0.0.
+    // earned. `initial-version` pins the first release.
+    //
+    // This test used to assert `bump-minor-pre-major` was true as well, on the
+    // reasoning that it "stops a later breaking change on 0.x from SILENTLY
+    // declaring 1.0.0". The word doing the work there was *silently*, and it no
+    // longer applies: the MCP SDK moved major, this server migrated to it as
+    // `feat(mcp)!:`, and the operator's call was that the release should read as
+    // the major it is. 1.0.0 is now chosen rather than slipped into, so the flag
+    // was removed and the assertion went with it. The setting is inert past 1.0
+    // anyway — it only governs a package whose major is 0 — so re-adding it
+    // after this release would pin a value nothing reads.
     //
     // Deliberately NOT asserted here: that the manifest still reads its 0.0.0
     // seed. Advancing that value is release-please's whole job, so pinning it
@@ -69,6 +77,5 @@ describe('version sync', () => {
     // (v0.1.0) — the assertion described a transient state, not an invariant.
     // The manifest is already checked against package.json above.
     expect(cfg['initial-version']).toBe('0.1.0');
-    expect(cfg['bump-minor-pre-major']).toBe(true);
   });
 });
