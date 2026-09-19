@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.4.4...v1.0.0) (2026-09-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mcp:** migrate server to SDK v2 ([#57](https://github.com/chrischall/myatriumhealth-mcp/issues/57))
+
+### Features
+
+* **mcp:** migrate server to SDK v2 ([#57](https://github.com/chrischall/myatriumhealth-mcp/issues/57)) ([c3fd486](https://github.com/chrischall/myatriumhealth-mcp/commit/c3fd486226660cb25846167868b10e4cc783ca5b))
+
 ## [0.4.4](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.4.3...v0.4.4) (2026-09-15)
 
 
