@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { McpToolError, minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
 import type { MyAtriumHealthClient } from '../client.js';
 import type { PatientContext } from '../patient-context.js';
 import { project, tidy } from './_project.js';
@@ -16,7 +16,7 @@ export function registerAccountTools(
     {
       description: 'Fetch the MyAtriumHealth health-summary header and action plans.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: { view: viewArg() },
+      inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
       return viewResponse(
@@ -35,7 +35,7 @@ export function registerAccountTools(
         'List Message Center folders with unread and total counts. ' +
         'Folder tags seen: 1 Conversations/inbox, 2 Archive, 3/6/7 Bookmarked, Appointments, Automated.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: { view: viewArg() },
+      inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
       return viewResponse(
@@ -54,10 +54,10 @@ export function registerAccountTools(
         'List Message Center conversations for a folder. Folder tags come from ' +
         'mah_list_message_folders (1 = Conversations/inbox, 2 = Archive).',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: {
+      inputSchema: z.object({
         folder: z.number().int().default(1).describe('Folder tag, from mah_list_message_folders.'),
         view: viewArg(),
-      },
+      }),
     },
     async ({ folder, view }) => {
       return viewResponse(
@@ -104,9 +104,9 @@ export function registerAccountTools(
         'List insurance coverages on file: active, pending submission or deletion, ' +
         'in review, and in verification.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: {
+      inputSchema: z.object({
         view: viewArg(),
-      },
+      }),
     },
     async ({ view }) => {
       return viewResponse(
@@ -156,7 +156,7 @@ export function registerAccountTools(
         'List the features this MyAtriumHealth account exposes (the portal menu). ' +
         'Useful for discovering what is available before calling other tools.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: { view: viewArg() },
+      inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
       return viewResponse(

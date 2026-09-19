@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
 import { viewArg, viewResponse } from '../view.js';
 import type { MyAtriumHealthClient } from '../client.js';
 import type { PatientContext } from '../patient-context.js';
@@ -18,13 +18,13 @@ export function registerBillingTools(
         'List billing accounts with balance due, grouped as outstanding, zero-balance ' +
         'or guarantor-authorized. Amounts are returned as displayed (formatted strings).',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: {
+      inputSchema: z.object({
         view: viewArg(),
         raw: z
           .boolean()
           .default(false)
           .describe('Return the raw page HTML instead of parsed accounts, for debugging.'),
-      },
+      }),
     },
     // Billing is one of the few areas with NO data endpoint — it issues no XHR,
     // so this parses the server-rendered page. If the markup changes the parse

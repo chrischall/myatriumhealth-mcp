@@ -1,4 +1,4 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
 import { registerAdaptiveHealthcheckTool } from '@chrischall/mcp-utils/fetchproxy';
 import { sessionClassifier, sessionProbe } from '@chrischall/mcp-utils/healthcheck';
 import type { MyAtriumHealthAuth } from '../auth.js';

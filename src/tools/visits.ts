@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
 import { isCompact, viewArg, viewResponse } from '../view.js';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
 import type { MyAtriumHealthClient } from '../client.js';
 import type { PatientContext } from '../patient-context.js';
 import { project, tidy } from './_project.js';
@@ -17,13 +17,13 @@ export function registerVisitTools(
     {
       description: 'List upcoming and in-progress MyAtriumHealth appointments.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: {
+      inputSchema: z.object({
         view: viewArg(),
         timeZone: z
           .string()
           .default('America/New_York')
           .describe('IANA time zone used to bucket appointments.'),
-      },
+      }),
     },
     async ({ timeZone, view }) => {
       return viewResponse(
@@ -43,13 +43,13 @@ export function registerVisitTools(
     {
       description: 'List past MyAtriumHealth visits, grouped by organization.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: {
+      inputSchema: z.object({
         before: z
           .string()
           .optional()
           .describe('ISO instant to page back from. Defaults to now.'),
         view: viewArg(),
-      },
+      }),
     },
     async ({ before, view }) => {
       return viewResponse(

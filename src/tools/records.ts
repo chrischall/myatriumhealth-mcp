@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
 import type { MyAtriumHealthClient } from '../client.js';
 import type { PatientContext } from '../patient-context.js';
 import { project, tidy } from './_project.js';
@@ -16,7 +16,7 @@ export function registerRecordTools(
     {
       description: 'List allergies and their reactions from the MyAtriumHealth health summary.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: { view: viewArg() },
+      inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
       return viewResponse(
@@ -48,7 +48,7 @@ export function registerRecordTools(
     {
       description: 'List the problem list (current health issues) recorded in MyAtriumHealth.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: { view: viewArg() },
+      inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
       return viewResponse(
@@ -73,7 +73,7 @@ export function registerRecordTools(
     {
       description: 'List immunizations and administration dates, grouped by organization.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: { view: viewArg() },
+      inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
       return viewResponse(
@@ -107,7 +107,7 @@ export function registerRecordTools(
       description:
         'List current medications: name, patient-friendly name, dosing instructions (sig) and prescriber.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: { view: viewArg() },
+      inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
       return viewResponse(
@@ -144,7 +144,7 @@ export function registerRecordTools(
         'List care team providers — name, specialty and relationship — from this ' +
         'organization and from linked outside organizations.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: { view: viewArg() },
+      inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
       return viewResponse(
@@ -190,7 +190,7 @@ export function registerRecordTools(
     {
       description: 'List patient goals tracked in MyAtriumHealth.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: { view: viewArg() },
+      inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
       return viewResponse(

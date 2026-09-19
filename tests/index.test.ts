@@ -112,8 +112,8 @@ describe('the view parameter', () => {
   function schemas(): Map<string, string[]> {
     const out = new Map<string, string[]>();
     const server = {
-      registerTool: (name: string, config: { inputSchema?: Record<string, unknown> }) => {
-        out.set(name, Object.keys(config.inputSchema ?? {}));
+      registerTool: (name: string, config: { inputSchema?: { shape?: Record<string, unknown> } }) => {
+        out.set(name, Object.keys(config.inputSchema?.shape ?? {}));
       },
     } as unknown as Parameters<typeof registerRecordTools>[0];
     const client = new MyAtriumHealthClient({ transport: stubTransport });
