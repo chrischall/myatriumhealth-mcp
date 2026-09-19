@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.0.0...v1.1.0) (2026-09-19)
+
+
+### Features
+
+* **deps:** take mcp-utils 1.0.0, fixing server/discover ([#61](https://github.com/chrischall/myatriumhealth-mcp/issues/61)) ([adc1ef7](https://github.com/chrischall/myatriumhealth-mcp/commit/adc1ef7b7534faeea9122283dba21ef2b67b83c4))
+
 ## [1.0.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v0.4.4...v1.0.0) (2026-09-19)
 
 
