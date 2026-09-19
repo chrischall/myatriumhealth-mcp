@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { McpToolError, minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
 import { MfaRequiredError, type MyAtriumHealthAuth, type DeliveryMethod } from '../auth.js';
 
 /**
@@ -44,7 +44,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth | 
         'Report whether a stored session can be resumed, and whether a verification is ' +
         'pending. Session continuity comes from the persisted cookie jar.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: {},
+      inputSchema: z.object({}),
     },
     async () => {
       if (auth === undefined) {
@@ -84,7 +84,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth | 
         'Sign in to MyAtriumHealth server-side. If the portal requires a verification ' +
         'code, this reports the available channels — ask the user which they want.',
       annotations: toolAnnotations({ readOnly: false }),
-      inputSchema: {},
+      inputSchema: z.object({}),
     },
     async () => {
       try {
@@ -113,7 +113,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth | 
         'Ask MyAtriumHealth to send a verification code to the account holder on the ' +
         'channel they chose. The code goes to them, not to this server.',
       annotations: toolAnnotations({ readOnly: false }),
-      inputSchema: {
+      inputSchema: z.object({
         channel: z
           .enum(['sms', 'email', 'totp'])
           .describe(
@@ -121,7 +121,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth | 
             "'totp' is an authenticator app — nothing is sent; read the code from the app.",
           ),
         resend: z.boolean().default(false).describe('Set when re-sending after a code expired.'),
-      },
+      }),
     },
     async ({ channel, resend }) => {
       await configured().sendCode(channel as DeliveryMethod, resend);
@@ -140,7 +140,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth | 
         'Submit the verification code the user received. On success the session is stored ' +
         'so restarts resume without signing in again, until it lapses.',
       annotations: toolAnnotations({ readOnly: false }),
-      inputSchema: {
+      inputSchema: z.object({
         code: z.string().min(4).describe('The code the USER received. Never guess or generate it.'),
         rememberDevice: z
           .boolean()
@@ -149,7 +149,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth | 
             "Record the portal's device-trust token. NOTE: this portal does not redeem it, " +
             'so it does not skip future verification; the persisted session is what carries over.',
           ),
-      },
+      }),
     },
     async ({ code, rememberDevice }) => {
       const r = await configured().verifyCode(code, rememberDevice);

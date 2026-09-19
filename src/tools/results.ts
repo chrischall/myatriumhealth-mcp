@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
 import type { MyAtriumHealthClient } from '../client.js';
 import type { PatientContext } from '../patient-context.js';
 import { project, tidy } from './_project.js';
@@ -18,9 +18,9 @@ export function registerResultTools(
         'List lab and imaging results: name, abnormal flag, date, ordering provider and any provider comment. ' +
         'Individual result values load on the detail page and are not in this list.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: {
+      inputSchema: z.object({
         view: viewArg(),
-      },
+      }),
     },
     async ({ view }) => {
       return viewResponse(

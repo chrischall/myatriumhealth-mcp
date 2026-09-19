@@ -1,4 +1,4 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/server';
 import { McpToolError, minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
 import { z } from 'zod';
 import type { MyAtriumHealthClient } from '../client.js';
@@ -18,7 +18,7 @@ export function registerPatientTools(
         'granted proxy access (a child, for example). Use the returned id with ' +
         'mah_set_active_patient.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: {},
+      inputSchema: z.object({}),
     },
     async () => minifiedResult(await listPatients(client)),
   );
@@ -30,7 +30,7 @@ export function registerPatientTools(
         'Which patient the reading tools are currently returning data for. Confirmed ' +
         'with the portal rather than reported from memory.',
       annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: {},
+      inputSchema: z.object({}),
     },
     async () => {
       // Re-assert first: after a restart the readers would apply the stored
@@ -57,9 +57,9 @@ export function registerPatientTools(
         'switch is confirmed with the portal before it is stored, and it survives ' +
         'restarts. Select the account holder to return to the default.',
       annotations: toolAnnotations({ readOnly: false, idempotent: true }),
-      inputSchema: {
+      inputSchema: z.object({
         patient_id: z.string().min(1).describe('id from mah_list_patients'),
-      },
+      }),
     },
     async ({ patient_id }) => {
       const all = await listPatients(client);

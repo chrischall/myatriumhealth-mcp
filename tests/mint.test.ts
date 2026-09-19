@@ -10,8 +10,8 @@ const mint = readFileSync(fileURLToPath(new URL('../mint.yaml', import.meta.url)
 function authToolSchemas(): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   const server = {
-    registerTool: (name: string, def: { inputSchema?: Record<string, unknown> }) => {
-      out[name] = Object.keys(def.inputSchema ?? {});
+    registerTool: (name: string, def: { inputSchema?: { shape?: Record<string, unknown> } }) => {
+      out[name] = Object.keys(def.inputSchema?.shape ?? {});
     },
   } as unknown as Parameters<typeof registerAuthTools>[0];
   registerAuthTools(
