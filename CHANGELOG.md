@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.1.1...v1.2.0) (2026-09-21)
+
+
+### Features
+
+* **messages:** reply to Message Center conversations ([#65](https://github.com/chrischall/myatriumhealth-mcp/issues/65)) ([6367a8f](https://github.com/chrischall/myatriumhealth-mcp/commit/6367a8ff92c985dbb22bfaf688c74386c7f0b277))
+
 ## [1.1.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.1.0...v1.1.1) (2026-09-21)
 
 
