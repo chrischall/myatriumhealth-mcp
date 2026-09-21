@@ -105,6 +105,17 @@ interface PreparedFile {
   bytes: Uint8Array<ArrayBuffer>;
 }
 
+/**
+ * A limit from GetComposeSettings. Missing means the answer could not be read —
+ * NOT a limit of zero, which would blame the message for the portal's reply.
+ */
+function limit(value: number | undefined, what: string): number {
+  if (typeof value === 'number') return value;
+  throw new McpToolError(`MyAtriumHealth did not report its ${what}, so the reply cannot be checked against it.`, {
+    hint: 'Nothing was sent. GetComposeSettings may have changed shape; see docs/MYATRIUMHEALTH-API.md.',
+  });
+}
+
 /** Decode and check every attachment against the portal's own limits. */
 function prepareAttachments(files: ReplyAttachment[], settings: ComposeSettings): PreparedFile[] {
   if (files.length === 0) return [];
@@ -112,7 +123,7 @@ function prepareAttachments(files: ReplyAttachment[], settings: ComposeSettings)
   if (a.canAttach !== true) {
     throw new McpToolError('MyAtriumHealth does not allow attachments on this reply.');
   }
-  const max = a.maxNumberOfAttachments ?? 0;
+  const max = limit(a.maxNumberOfAttachments, 'attachment count limit');
   if (files.length > max) {
     throw new McpToolError(`MyAtriumHealth allows at most ${max} attachments per message.`);
   }
@@ -138,10 +149,10 @@ function prepareAttachments(files: ReplyAttachment[], settings: ComposeSettings)
     const bytes = new Uint8Array(Buffer.from(f.contentBase64, 'base64'));
     if (bytes.length === 0) throw new McpToolError(`${f.filename} is empty.`);
     // The portal states its limits in KB.
-    const limit = (kind.maxFileSize ?? 0) * 1024;
-    if (bytes.length > limit) {
+    const maxKb = limit(kind.maxFileSize, 'file size limit');
+    if (bytes.length > maxKb * 1024) {
       throw new McpToolError(
-        `${f.filename} is too large: ${bytes.length} bytes, over the portal limit of ${kind.maxFileSize} KB.`,
+        `${f.filename} is too large: ${bytes.length} bytes, over the portal limit of ${maxKb} KB.`,
       );
     }
     return { filename: f.filename, mimeType: MIME[ext] as string, bytes };
@@ -180,7 +191,7 @@ async function prepare(client: MyAtriumHealthClient, input: ReplyInput) {
   })) as ComposeSettings;
 
   if (input.body.trim() === '') throw new McpToolError('The reply body is empty.');
-  const maxLen = settings.maxMessageLength ?? 0;
+  const maxLen = limit(settings.maxMessageLength, 'message length limit');
   if (input.body.length > maxLen) {
     throw new McpToolError(
       `The reply is ${input.body.length} characters; MyAtriumHealth allows ${maxLen}.`,
@@ -302,19 +313,13 @@ export async function replyToConversation(
         { hint: UNCERTAIN_HINT },
       );
     }
-    // The app treats the thread id coming back as success. Anything else is not
-    // a refusal we can vouch for either, so it is reported as uncertain and the
-    // uploads are left alone: they may now belong to a sent message.
-    if (answer !== input.conversationId) {
-      throw new McpToolError('MyAtriumHealth did not confirm the reply; it may have been sent.', {
-        hint: UNCERTAIN_HINT,
-      });
-    }
-    await client.api('conversations/RemoveComposeId', { composeId }).catch(() => {});
+    // The app treats any non-empty answer as success; the thread id coming back
+    // is what was observed. Either way the thread is read back: a new message
+    // written by this viewer with the text that was sent is proof it went out,
+    // whatever the answer said.
+    const echoed = answer === input.conversationId;
+    if (echoed) await client.api('conversations/RemoveComposeId', { composeId }).catch(() => {});
 
-    // SendReply returns only the thread id, so the new message is found by
-    // reading the thread back: new since the send began, written by this
-    // viewer, with the text that was sent.
     const seen = new Set((p.details.messages ?? []).map((m) => m.wmgId));
     let message: Message | undefined;
     try {
@@ -330,6 +335,15 @@ export async function replyToConversation(
     } catch {
       message = undefined;
     }
+    // No echo AND no message: that is not a refusal anyone can vouch for, so it
+    // is reported as uncertain and the uploads are left alone — they may now
+    // belong to a sent message.
+    if (!echoed && message === undefined) {
+      throw new McpToolError('MyAtriumHealth did not confirm the reply; it may have been sent.', {
+        hint: UNCERTAIN_HINT,
+      });
+    }
+    if (!echoed) await client.api('conversations/RemoveComposeId', { composeId }).catch(() => {});
     return {
       sent: true,
       verified: message !== undefined,

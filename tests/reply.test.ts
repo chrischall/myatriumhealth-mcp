@@ -83,6 +83,7 @@ interface Portal {
 
 function portal(opts: {
   details?: Record<string, unknown>;
+  composeSettings?: Record<string, unknown>;
   sendReplyAnswer?: string;
   saveDraftAnswer?: string;
   newBodyLines?: string[];
@@ -107,7 +108,7 @@ function portal(opts: {
           : [];
         return json(details([oldMessage, ...sent], opts.details));
       }
-      if (path.endsWith('GetComposeSettings')) return json(composeSettings);
+      if (path.endsWith('GetComposeSettings')) return json(opts.composeSettings ?? composeSettings);
       if (path.endsWith('GetComposeId')) return json(COMPOSE);
       if (path.endsWith('SaveReplyDraft')) return { status: 200, body: opts.saveDraftAnswer ?? JSON.stringify({ conversationId: HTH, error: 0 }) };
       if (path.endsWith('SendReply')) {
@@ -186,6 +187,25 @@ describe('mah_reply_message — the preview', () => {
     expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
   });
 
+  // A limit missing from GetComposeSettings is an unreadable answer, not a
+  // portal limit of zero — reporting "allows 0" sends people after the wrong cause.
+  it('says the limits could not be read when GetComposeSettings omits them', async () => {
+    const p = portal({ composeSettings: { attachmentSettings: composeSettings.attachmentSettings } });
+    const err = await tool(p).call({ conversationId: HTH, body: 'x' }).catch((e: Error) => e);
+    expect((err as Error).message).toMatch(/did not report/i);
+    expect((err as Error).message).not.toMatch(/allows 0/);
+  });
+
+  it('says the attachment limits could not be read when they are missing', async () => {
+    const { maxNumberOfAttachments: _drop, ...rest } = composeSettings.attachmentSettings;
+    const p = portal({ composeSettings: { ...composeSettings, attachmentSettings: rest } });
+    const err = await tool(p)
+      .call({ conversationId: HTH, body: 'x', attachments: [{ filename: 'a.pdf', contentBase64: png }] })
+      .catch((e: Error) => e);
+    expect((err as Error).message).toMatch(/did not report/i);
+    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+  });
+
   it('refuses when the reply cannot be attributed to exactly one viewer', async () => {
     const p = portal({ details: { viewers: {} } });
     await expect(tool(p).call({ conversationId: HTH, body: 'x', confirm: true })).rejects.toThrow(/viewer/i);
@@ -245,11 +265,38 @@ describe('mah_reply_message — sending', () => {
   });
 
   it('reports an unconfirmed send as UNCERTAIN, never as a failure safe to retry', async () => {
-    const p = portal({ sendReplyAnswer: '""' });
+    // No thread-id echo AND the message cannot be read back.
+    const p = portal({ sendReplyAnswer: '""', newBodyLines: ['something else entirely'] });
     await expect(tool(p).call({ conversationId: HTH, body: 'x', confirm: true })).rejects.toThrow(
       /may have been sent|before retrying/i,
     );
     expect(endpoints(p).filter((e) => e.endsWith('SendReply'))).toHaveLength(1);
+  });
+
+  // The app accepts any non-empty answer. An answer that is not the thread id
+  // is not proof of failure, so the thread is read back before deciding.
+  it('confirms a send by reading the thread back when the answer is not the thread id', async () => {
+    const p = portal({ sendReplyAnswer: JSON.stringify('WP-24somethingelse') });
+    const out = await tool(p).call({ conversationId: HTH, body: "I'd like another refill at the same dosage.", confirm: true });
+    expect(out).toMatchObject({ sent: true, verified: true, message: { wmgId: NEW_WMG } });
+  });
+
+  // A sign-in page in answer to the send proves it was not accepted: clean up
+  // and say so, rather than "may have been sent".
+  it('treats a sign-in page in answer to the send as not sent, and cleans up', async () => {
+    const p = portal({
+      sendReplyAnswer: '<html><head><title>MyAtriumHealth - Login Page</title></head></html>',
+    });
+    const err = await tool(p)
+      .call({ conversationId: HTH, body: 'x', attachments: [{ filename: 'scan.png', contentBase64: png }], confirm: true })
+      .catch((e: Error) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/not signed in/i);
+    expect((err as Error).message).not.toMatch(/may have been sent/i);
+    expect(endpoints(p).filter((e) => /DeleteFile|RemoveComposeId/.test(e))).toEqual([
+      'DocumentUpload/DeleteFile',
+      'conversations/RemoveComposeId',
+    ]);
   });
 
   it('never sends if the session re-authenticated after the patient was confirmed', async () => {
