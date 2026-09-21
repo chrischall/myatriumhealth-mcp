@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.1.0...v1.1.1) (2026-09-21)
+
+
+### Bug Fixes
+
+* **tools:** say which writes are destructive ([#63](https://github.com/chrischall/myatriumhealth-mcp/issues/63)) ([ba17ac3](https://github.com/chrischall/myatriumhealth-mcp/commit/ba17ac313c567e46cdea020ac784ca949c04ed01))
+
 ## [1.1.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.0.0...v1.1.0) (2026-09-19)
 
 
