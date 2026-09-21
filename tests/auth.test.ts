@@ -316,6 +316,31 @@ describe('ServerTransport session handling', () => {
     expect(dataHits).toBe(2);      // original + exactly one replay
     expect(logins).toBeLessThanOrEqual(2);
   });
+
+  // A reply must never be replayed after a silent re-login: the fresh session
+  // serves the account holder, not the patient the reply was confirmed for.
+  // The login-page answer proves the first attempt was not accepted, so the
+  // honest report is "not sent, sign in again" — not a second submission.
+  it('does not re-login and replay a request marked replay:false', async () => {
+    let logins = 0;
+    let dataHits = 0;
+    const { fetchImpl } = harness((url) => {
+      if (url.includes('Authentication/Login') && !url.includes('DoLogin')) return { body: loginPage };
+      if (url.includes('DoLogin')) { logins++; return { status: 302, headers: { location: '/myatriumhealth/Home' } }; }
+      if (url.endsWith('/Home')) return signedInHome;
+      dataHits++;
+      return { status: 200, body: '<title>MyAtriumHealth - Login Page</title>' };
+    });
+    const store = memoryStore();
+    store.save({ deviceId: '', username: USER, cookies: [['SESS', 'abc']] } as never);
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: store });
+    const { ServerTransport } = await import('../src/transport-server.js');
+    await expect(
+      new ServerTransport(auth).fetch({ method: 'POST', path: 'api/conversations/SendReply', body: '{}', replay: false }),
+    ).rejects.toThrow(/nothing was sent/i);
+    expect(dataHits).toBe(1);
+    expect(logins).toBe(0);
+  });
 });
 
 describe('healthcheck must not authenticate', () => {

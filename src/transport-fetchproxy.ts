@@ -11,6 +11,7 @@ import {
   createFetchproxyTransport,
   type FetchproxyTransport as FetchproxyVerbTransport,
 } from '@chrischall/mcp-utils/fetchproxy';
+import { McpToolError } from '@chrischall/mcp-utils';
 import type { FetchInit, FetchResult, MahTransport } from './transport.js';
 
 /**
@@ -62,6 +63,17 @@ export class FetchproxyTransport implements MahTransport {
   }
 
   async fetch(init: FetchInit): Promise<FetchResult> {
+    if (init.body !== undefined && typeof init.body !== 'string') {
+      throw new McpToolError(
+        'File uploads cannot go through the browser bridge — it relays a request body as ' +
+          'text, and a binary upload would arrive corrupted.',
+        {
+          hint:
+            'Send without attachments, or set MAH_USERNAME and MAH_PASSWORD so this server ' +
+            'signs in itself; uploads work on that path.',
+        },
+      );
+    }
     const response = await this.inner.fetch({
       method: init.method,
       path: `/${APP_ROOT}/${init.path.replace(/^\/+/, '')}`,

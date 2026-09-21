@@ -89,7 +89,11 @@
     },
     {
       "name": "mah_list_messages",
-      "description": "List Message Center conversations for a folder, with participants, subject and date"
+      "description": "List Message Center conversations for a folder, with the conversationId to reply to, participants, subject and date"
+    },
+    {
+      "name": "mah_reply_message",
+      "description": "Reply to a Message Center conversation as the active patient. Irreversible and provider-visible; previews unless confirm is true. Refused when MAH_READ_ONLY is set."
     },
     {
       "name": "mah_list_past_visits",

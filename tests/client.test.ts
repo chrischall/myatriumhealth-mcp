@@ -209,3 +209,14 @@ describe('auth-wall detection must not false-positive', () => {
     await expect(c.api('allergies/LoadAllergies')).resolves.toEqual({ ok: true });
   });
 });
+
+describe('JSON string answers', () => {
+  // GetComposeId and SendReply answer with a bare JSON string (an id), not an
+  // object — captured from the app. Treating that as "not JSON" broke the send.
+  it('parses a bare JSON string as a real answer', async () => {
+    const t = new FakeTransport((i) =>
+      i.path.startsWith('api/') ? ok('"WP-24compose"') : ok(signedInPage()));
+    const c = new MyAtriumHealthClient({ transport: t });
+    await expect(c.api('conversations/GetComposeId')).resolves.toBe('WP-24compose');
+  });
+});

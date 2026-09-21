@@ -10,10 +10,12 @@
 //   * otherwise        → the fetchproxy bridge, relaying through the user's
 //     signed-in tab. Holds no credentials at all.
 //
-// Every data tool is read-only; only the sign-in tools mutate anything, and what
-// they mutate is the local session.
+// Every data tool is read-only except mah_reply_message, which sends a message a
+// provider will see. It previews unless called with confirm: true, and
+// MAH_READ_ONLY=true refuses it outright. The sign-in tools mutate only the
+// local session.
 
-import { loadDotenvSafely, runMcp, readEnvVar, readPortEnv } from '@chrischall/mcp-utils';
+import { loadDotenvSafely, parseBoolEnv, runMcp, readEnvVar, readPortEnv } from '@chrischall/mcp-utils';
 import { createFileStatePersistence, resolveStateFile } from '@chrischall/mcp-utils/session';
 import { MyAtriumHealthAuth, type DeviceRecord } from './auth.js';
 import { MyAtriumHealthClient } from './client.js';
@@ -25,6 +27,7 @@ import type { MahTransport } from './transport.js';
 import { registerAccountTools } from './tools/account.js';
 import { registerAuthTools } from './tools/auth.js';
 import { registerBillingTools } from './tools/billing.js';
+import { registerMessageTools } from './tools/messages.js';
 import { registerMahHealthcheckTool } from './tools/healthcheck.js';
 import { registerRecordTools } from './tools/records.js';
 import { registerResultTools } from './tools/results.js';
@@ -82,6 +85,10 @@ if (!bridgeless && (username !== undefined || password !== undefined)) {
       'server / MAH_DOTENV) for bridge-less sign-in, which needs no tab.',
   );
 }
+
+// Off by default, like every other capability here: the send itself is already
+// behind confirm: true. This is the switch for an install that must never send.
+const readOnly = parseBoolEnv('MAH_READ_ONLY', { default: false });
 
 const port = readPortEnv('MAH_WS_PORT', DEFAULT_PORT);
 let transport: MahTransport;
@@ -144,6 +151,9 @@ await runMcp({
     (server) => registerVisitTools(server, client, patients),
     (server) => registerAccountTools(server, client, patients),
     (server) => registerBillingTools(server, client, patients),
+    // Uploads need a transport that carries binary — only the credential one.
+    (server) =>
+      registerMessageTools(server, client, patients, { readOnly, attachmentsSupported: bridgeless }),
     (server) => registerPatientTools(server, client, patients),
     // Unconditional, in both modes. What varies is what they DO, not whether
     // they exist — see registerAuthTools for why a tool surface that follows

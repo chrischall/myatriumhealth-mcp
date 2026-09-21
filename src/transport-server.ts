@@ -5,7 +5,7 @@
 import { McpToolError } from '@chrischall/mcp-utils';
 import type { MyAtriumHealthAuth } from './auth.js';
 import { BASE, MfaRequiredError } from './auth.js';
-import type { FetchInit, FetchResult, MahTransport } from './transport.js';
+import { NotAcceptedError, type FetchInit, type FetchResult, type MahTransport } from './transport.js';
 
 export class ServerTransport implements MahTransport {
   private loggedIn = false;
@@ -82,6 +82,15 @@ export class ServerTransport implements MahTransport {
     // credential submission and repeated failures escalate to a lockout.
     if (/<title>[^<]*Login Page/i.test(out.body)) {
       this.loggedIn = false;
+      // A send is never replayed: a fresh sign-in serves the account holder, so
+      // the replay would post as someone else. The login page proves this
+      // attempt was not accepted, so "not sent" is a statement of fact.
+      if (init.replay === false) {
+        throw new NotAcceptedError(
+          'The MyAtriumHealth session expired before this was accepted, so nothing was sent.',
+          { hint: 'Retry the call; it signs in again first. A verification code may be required.' },
+        );
+      }
       await this.ensureSession();
       out = await send();
       this.auth.persistIfDirty();
