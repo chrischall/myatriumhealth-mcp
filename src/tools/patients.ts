@@ -56,7 +56,7 @@ export function registerPatientTools(
         'Point every reading tool at one of the patients from mah_list_patients. The ' +
         'switch is confirmed with the portal before it is stored, and it survives ' +
         'restarts. Select the account holder to return to the default.',
-      annotations: toolAnnotations({ readOnly: false, idempotent: true }),
+      annotations: toolAnnotations({ readOnly: false, idempotent: true, destructive: false }),
       inputSchema: z.object({
         patient_id: z.string().min(1).describe('id from mah_list_patients'),
       }),
