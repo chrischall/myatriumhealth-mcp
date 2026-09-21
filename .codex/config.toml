@@ -1,0 +1,9 @@
+[mcp_servers.myatriumhealth]
+command = "npx"
+args = [
+    "-y",
+    "@chrischall/myatriumhealth-mcp",
+]
+
+[mcp_servers.myatriumhealth.env]
+MAH_WS_PORT = "37149"

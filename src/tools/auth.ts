@@ -83,7 +83,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth | 
       description:
         'Sign in to MyAtriumHealth server-side. If the portal requires a verification ' +
         'code, this reports the available channels — ask the user which they want.',
-      annotations: toolAnnotations({ readOnly: false }),
+      annotations: toolAnnotations({ readOnly: false, destructive: true }),
       inputSchema: z.object({}),
     },
     async () => {
@@ -112,7 +112,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth | 
       description:
         'Ask MyAtriumHealth to send a verification code to the account holder on the ' +
         'channel they chose. The code goes to them, not to this server.',
-      annotations: toolAnnotations({ readOnly: false }),
+      annotations: toolAnnotations({ readOnly: false, destructive: true }),
       inputSchema: z.object({
         channel: z
           .enum(['sms', 'email', 'totp'])
@@ -139,7 +139,7 @@ export function registerAuthTools(server: McpServer, auth: MyAtriumHealthAuth | 
       description:
         'Submit the verification code the user received. On success the session is stored ' +
         'so restarts resume without signing in again, until it lapses.',
-      annotations: toolAnnotations({ readOnly: false }),
+      annotations: toolAnnotations({ readOnly: false, destructive: true }),
       inputSchema: z.object({
         code: z.string().min(4).describe('The code the USER received. Never guess or generate it.'),
         rememberDevice: z
