@@ -52,7 +52,8 @@ export function registerAccountTools(
     {
       description:
         'List Message Center conversations for a folder. Folder tags come from ' +
-        'mah_list_message_folders (1 = Conversations/inbox, 2 = Archive).',
+        'mah_list_message_folders (1 = Conversations/inbox, 2 = Archive). Each carries the ' +
+        'conversationId that mah_reply_message takes.',
       annotations: toolAnnotations({ readOnly: true }),
       inputSchema: z.object({
         folder: z.number().int().default(1).describe('Folder tag, from mah_list_message_folders.'),
@@ -70,7 +71,9 @@ export function registerAccountTools(
             }) =>
               r.conversations?.map((c) => {
                 const msgs = (c['messages'] as Record<string, unknown>[] | undefined) ?? [];
-                const first = msgs[0] ?? {};
+                // Oldest first (captured 2026-09-21), so the thread's date is
+                // its LAST message — `msgs[0]` dated threads by their start.
+                const last = msgs.at(-1) ?? {};
                 // The per-message author is NOT resolvable: `author.displayName` is
                 // empty on every conversation observed, and `author.wprKey` does not
                 // match any key in the response's `users` map. The thread's
@@ -80,11 +83,14 @@ export function registerAccountTools(
                   .map((k) => r.users?.[k]?.name)
                   .filter((n): n is string => typeof n === 'string' && n !== '');
                 return tidy({
+                  // The id mah_reply_message takes.
+                  conversationId: c['hthId'],
                   subject: c['subject'],
                   participants: participants.length > 0 ? participants : undefined,
                   preview: c['previewText'],
                   messageType: c['messageType'],
-                  date: first['deliveryInstantISO'],
+                  date: last['deliveryInstantISO'],
+                  lastMessageId: last['wmgId'],
                   unread: msgs.some((m) => m['isUnread'] === true),
                   hasAttachments: c['hasAttachments'],
                   urgent: c['hasUrgentMsgs'],

@@ -181,4 +181,34 @@ export class PatientContext {
       { hint: 'Run mah_get_patient_context, then retry the read.' },
     );
   }
+
+  /**
+   * Run a WRITE as the selected patient — once, never retried.
+   *
+   * {@link readAs} recovers from a mid-flight sign-in by reading again. A write
+   * cannot: repeating it could send twice, and the fresh session serves the
+   * account holder, so the repeat would go out as someone else. Instead the
+   * write gets `assertUnchanged`, to call immediately before its irreversible
+   * step; it throws if any sign-in has happened since the patient was
+   * confirmed, while nothing has been sent yet.
+   */
+  async writeAs<T>(
+    client: MyAtriumHealthClient,
+    write: (ctx: { patient: string; assertUnchanged: () => void }) => Promise<T>,
+  ): Promise<T> {
+    const patient = await this.ensure(client);
+    const generation = this.generation;
+    return write({
+      patient,
+      assertUnchanged: () => {
+        if (this.generation !== generation) {
+          throw new McpToolError(
+            `MyAtriumHealth re-authenticated after ${patient} was confirmed, so nothing was ` +
+              'sent: the new session may be serving a different patient.',
+            { hint: 'Retry the call; it confirms the patient again before sending.' },
+          );
+        }
+      },
+    });
+  }
 }

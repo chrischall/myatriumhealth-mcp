@@ -31,6 +31,11 @@ env:
       Override the session-state file path. Defaults to device.json under the
       data directory, which is where it belongs when hosted — and with
       per-user children each caller gets their own.
+  - name: MAH_READ_ONLY
+    required: false
+    help: >-
+      true refuses mah_reply_message sends; previews still work. Default false —
+      every send already requires confirm: true.
   - name: MAH_WS_PORT
     required: false
     help: >-

@@ -7,6 +7,7 @@ import { MyAtriumHealthAuth } from '../src/auth.js';
 import { registerAccountTools } from '../src/tools/account.js';
 import { registerAuthTools } from '../src/tools/auth.js';
 import { registerBillingTools } from '../src/tools/billing.js';
+import { registerMessageTools } from '../src/tools/messages.js';
 import { registerPatientTools } from '../src/tools/patients.js';
 import { PatientContext } from '../src/patient-context.js';
 import { registerRecordTools } from '../src/tools/records.js';
@@ -35,6 +36,7 @@ function registeredToolNames(): string[] {
   registerAccountTools(server, client, patients);
   registerBillingTools(server, client, patients);
   registerPatientTools(server, client, patients);
+  registerMessageTools(server, client, patients, { readOnly: false, attachmentsSupported: true });
   // Auth tools are conditional at runtime (credentials configured) but must be
   // in the manifest, or an mcpb host would never show the sign-in flow.
   const auth = new MyAtriumHealthAuth({
@@ -72,6 +74,7 @@ describe('tool roster', () => {
       'mah_list_patients',
       'mah_list_test_results',
       'mah_list_upcoming_visits',
+      'mah_reply_message',
       'mah_send_verification_code',
       'mah_set_active_patient',
       'mah_sign_in',

@@ -126,6 +126,52 @@ read the one the server sent.
 
 `api/item-feed/FetchItemFeed` still needs parameters that have not been captured.
 
+## Replying to a conversation — working
+
+Captured live 2026-09-21 by replying in the web app (account holder, local
+organization). The conversation list's thread id is `hthId`; its `messages[]` are
+**oldest first**.
+
+Opening a thread: `POST api/conversations/GetConversationDetails`
+`{id: <hthId>, messageId: "", organizationId: "", PageNonce}` →
+`{hthId, subject, replyFlags{canReply, cannotReplyReason}, viewers{<wprId>: {wprId, name,
+isSelf, isShown, isSelected}}, viewerKeys, userKeys, users, messages[], organizationId, …}`.
+A message's `author.wprKey` equals the self viewer's `wprId` when you wrote it — it does
+not resolve against `users`, which holds the staff.
+
+Pressing Reply, then Send, issues:
+
+1. `api/conversations/GetComposeSettings` `{organizationId}` → `{maxMessageLength: 500,
+   attachmentSettings{canAttach, maxNumberOfAttachments: 3, docAndImageSettings{maxFileSize:
+   10240 (KB), allowedFileExtensions}, videoSettings{maxFileSize: 65536, …}}, …}`
+2. `api/conversations/GetComposeId` `{}` → a bare JSON string (the compose id).
+3. `api/conversations/SaveReplyDraft` and then `api/conversations/SendReply`, same body:
+
+       {"conversationId":"<hthId>","organizationId":"",
+        "viewers":[{"wprId":"<the viewer with isSelf>"}],
+        "messageBody":["<one string per line>"],
+        "documentIds":[],"includeOtherViewers":false,"composeId":"<id>"}
+
+   SaveReplyDraft → `{conversationId, error: 0}`. SendReply → a bare JSON string, the
+   `hthId` — **no message id**; the app treats any non-empty answer as success.
+4. `api/conversations/RemoveComposeId` `{composeId}` → `""`.
+
+`messageBody` is the text split on `/\r\n|[\r\n]/` (message-composer bundle). The stored
+body comes back as HTML: a `<style>` block, then one `div[data-paragraph=N]` per line,
+whose text equals what was sent.
+
+**Attachments.** `POST DocumentUpload/UploadFile` (no `api/` prefix), multipart:
+`__file__[]` (the file), `AddDCSToCache=true`, `IsPending=true`, `DCSSource=820`,
+`OrganizationId`, `EncryptDCSOnRemote=""`, `__RequestVerificationToken` (also sent as a
+header) → `{Success, Data[{DocumentId, FileDisplayName, FileExtension: ".png", …}]}`.
+`DocumentId` goes in `documentIds`. The upload is pending and reaches nobody until a send
+names it; `POST DocumentUpload/DeleteFile` (JSON) `{DocumentId, ContextData{isPending:
+true, addDCSToCache: true, dcsSource: "820", organizationId}, FileDisplayName,
+FileExtension: "png", FileReference: "", AllowPreview: false}` → `{Success: true}`
+discards it. Both verified live with a probe file that was deleted, never sent.
+
+Not observed: replies in an external organization's thread, or as a proxy subject.
+
 ## Insurance (legacy, form-encoded)
 
 `POST Insurance/Coverages/GetCoverages` with the form body `isStandAlone=true`

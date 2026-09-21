@@ -10,7 +10,23 @@
 // Both require the ASP.NET antiforgery token scraped from a signed-in page.
 
 import { McpToolError } from '@chrischall/mcp-utils';
-import type { FetchInit, FetchResult, MahTransport } from './transport.js';
+import { NotAcceptedError, type FetchInit, type FetchResult, type MahTransport } from './transport.js';
+
+/**
+ * The upload context the message composer uses (`dcsSource` 820 = Message
+ * Center), sent as form fields on upload and as `ContextData` on delete.
+ * Captured from the app, not inferred.
+ */
+const UPLOAD_CONTEXT = (organizationId: string) => ({
+  form: {
+    AddDCSToCache: 'true',
+    IsPending: 'true',
+    DCSSource: '820',
+    OrganizationId: organizationId,
+    EncryptDCSOnRemote: '',
+  },
+  context: { isPending: true, addDCSToCache: true, dcsSource: '820', organizationId },
+});
 
 /** Path under the app root that reliably renders for a signed-in user. */
 const TOKEN_PAGE = 'Home';
@@ -70,7 +86,7 @@ function emptyBody(what: string): McpToolError {
 }
 
 function notSignedIn(): McpToolError {
-  return new McpToolError(
+  return new NotAcceptedError(
     'Not signed in to MyAtriumHealth — the portal returned a sign-in or verification page.',
     {
       hint:
@@ -158,7 +174,9 @@ export class MyAtriumHealthClient {
   private parse<T>(body: string, endpoint: string): T {
     const trimmed = body.trimStart();
     if (trimmed === '') throw emptyBody(endpoint);
-    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    // A bare JSON string is a real answer too: GetComposeId and SendReply
+    // return one (an id), captured from the app.
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[') && !trimmed.startsWith('"')) {
       if (isAuthWall(body)) throw notSignedIn();
       const oops = /<title>([^<]*)</.exec(body)?.[1]?.trim();
       throw new McpToolError(
@@ -184,20 +202,110 @@ export class MyAtriumHealthClient {
   }
 
   /** POST a modern `api/<area>/<Action>` endpoint. Body defaults to `{}`. */
-  async api<T = unknown>(endpoint: string, body: unknown = {}): Promise<T> {
+  async api<T = unknown>(
+    endpoint: string,
+    body: unknown = {},
+    opts: { replay?: false } = {},
+  ): Promise<T> {
+    return this.postJson<T>(`api/${endpoint.replace(/^\/+/, '')}`, body, endpoint, opts);
+  }
+
+  /** POST a JSON body to any path under the app root, as the web app does. */
+  private async postJson<T>(
+    path: string,
+    body: unknown,
+    endpoint: string,
+    opts: { replay?: false } = {},
+  ): Promise<T> {
     const token = await this.getToken();
     return this.send<T>(
       {
         method: 'POST',
-        path: `api/${endpoint.replace(/^\/+/, '')}`,
+        path,
         headers: {
           __RequestVerificationToken: token,
           Accept: 'application/json',
           'Content-Type': 'application/json',
         },
         body: typeof body === 'string' ? body : JSON.stringify(body),
+        ...(opts.replay === false ? { replay: false as const } : {}),
       },
       endpoint,
+    );
+  }
+
+  /**
+   * One conversation with its messages, viewers and reply flags. The thread id
+   * is the `hthId` from GetConversationList; the body is what the app sends
+   * when a thread is opened.
+   */
+  async conversationDetails(id: string, organizationId = ''): Promise<unknown> {
+    return this.api('conversations/GetConversationDetails', {
+      id,
+      messageId: '',
+      organizationId,
+      PageNonce: await this.pageNonce(),
+    });
+  }
+
+  /**
+   * Upload one file for a message, exactly as the composer does. The file is
+   * held PENDING: it reaches nobody until a send names its DocumentId, and
+   * {@link deleteDocument} discards it.
+   *
+   * Multipart, so it needs a transport that carries binary — the browser bridge
+   * refuses it.
+   */
+  async uploadDocument(
+    file: { filename: string; mimeType: string; bytes: Uint8Array<ArrayBuffer> },
+    organizationId = '',
+  ): Promise<{ documentId: string; filename: string; fileExtension: string }> {
+    const token = await this.getToken();
+    const form = new FormData();
+    form.append('__file__[]', new Blob([file.bytes], { type: file.mimeType }), file.filename);
+    for (const [k, v] of Object.entries(UPLOAD_CONTEXT(organizationId).form)) form.append(k, v);
+    form.append('__RequestVerificationToken', token);
+    const res = await this.send<{
+      Success?: boolean;
+      Data?: { DocumentId?: string; FileDisplayName?: string; FileExtension?: string }[];
+    }>(
+      {
+        method: 'POST',
+        path: 'DocumentUpload/UploadFile',
+        headers: { __RequestVerificationToken: token },
+        body: form,
+      },
+      'DocumentUpload/UploadFile',
+    );
+    const doc = res.Success === true ? res.Data?.[0] : undefined;
+    if (doc?.DocumentId === undefined) {
+      throw new McpToolError(`MyAtriumHealth did not accept the upload of ${file.filename}.`, {
+        hint: 'Nothing was sent. Check the file type and size against the portal limits.',
+      });
+    }
+    return {
+      documentId: doc.DocumentId,
+      filename: doc.FileDisplayName ?? file.filename,
+      fileExtension: doc.FileExtension ?? '',
+    };
+  }
+
+  /** Discard a pending upload, with the context the composer sends. */
+  async deleteDocument(
+    doc: { documentId: string; filename: string; fileExtension: string },
+    organizationId = '',
+  ): Promise<void> {
+    await this.postJson(
+      'DocumentUpload/DeleteFile',
+      {
+        DocumentId: doc.documentId,
+        ContextData: UPLOAD_CONTEXT(organizationId).context,
+        FileDisplayName: doc.filename,
+        FileExtension: doc.fileExtension.replace(/^\./, ''),
+        FileReference: '',
+        AllowPreview: false,
+      },
+      'DocumentUpload/DeleteFile',
     );
   }
 

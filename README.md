@@ -111,11 +111,13 @@ call prints a pair code — approve it once in the Transporter popup.
 | `MAH_PASSWORD` | — | Portal password. Both are required; setting only one falls back to the bridge (with a warning). |
 | `MAH_DEVICE_FILE` | `~/.myatriumhealth-mcp/device.json` | Session state (0600). Holds the **live cookie jar** as well as the device token — treat as a credential. |
 | `MAH_WS_PORT` | `37149` | fetchproxy concentrator port (bridge mode only). The whole fleet shares this one port; override only when hosting. |
+| `MAH_READ_ONLY` | `false` | `true` refuses `mah_reply_message` sends (previews still work). The tool stays listed either way. |
 
 ## Tools
 
-All read-only except `mah_set_active_patient`, which changes only which patient this
-connector reads — it writes nothing to any chart.
+All read-only except two. `mah_set_active_patient` changes only which patient this
+connector reads — it writes nothing to any chart. `mah_reply_message` **sends a message
+a provider will see**, which cannot be undone: see [Replying](#replying).
 
 Every reading tool returns `{ patient, data }`, so the chart a response belongs to is
 stated rather than inferred.
@@ -132,7 +134,8 @@ stated rather than inferred.
 | `mah_list_goals` | Patient goals |
 | `mah_get_health_summary` | Health-summary header and action plans |
 | `mah_list_message_folders` | Message Center folders with unread counts |
-| `mah_list_messages` | Message Center conversations for a folder |
+| `mah_list_messages` | Message Center conversations for a folder, each with the `conversationId` to reply to |
+| `mah_reply_message` | Reply to a conversation as the active patient — previews unless `confirm: true` *(irreversible)* |
 | `mah_list_insurance` | Insurance coverages on file |
 | `mah_list_care_team` | Care team providers, internal and external |
 | `mah_list_billing_accounts` | Billing accounts and balances (parsed from HTML) |
@@ -185,6 +188,28 @@ local organization returns HTTP 500. The client assembles this from
 `conversations/GetOrganizations` and its explicit `isLocal` flag.
 
 `api/item-feed/FetchItemFeed` still needs parameters that have not been captured.
+
+## Replying
+
+`mah_reply_message` takes a `conversationId` from `mah_list_messages`, a plain-text
+`body`, and optionally `attachments`. It replies **as whichever patient is active**.
+
+- **It previews by default.** Without `confirm: true` it returns the thread, recipients
+  and body and sends nothing. The send itself is irreversible and provider-visible.
+- **`MAH_READ_ONLY=true` refuses every send.** The tool stays registered — a hosted
+  connector publishes the tool list of a child with no env of its own, so a tool that
+  registered only when writes were allowed would disappear for everyone.
+- **Limits come from the portal**: 500 characters, 3 attachments, 10 MB per document or
+  image (64 MB per video), BMP/DOC/DOCX/JPEG/JPG/PDF/PNG/TIF/TIFF and common video types.
+- **Attachments need bridge-less mode.** fetchproxy relays a request body as text, which
+  a binary upload does not survive, so through the browser bridge a reply with
+  attachments is refused before anything is uploaded.
+- **A send is never retried.** If the session re-authenticates between confirming the
+  patient and sending, nothing is sent: a fresh sign-in serves the account holder, and
+  the reply would go out as them. If the portal's answer to the send cannot be read, the
+  result says the reply *may* have been sent — check the thread before trying again.
+- On success it returns the new message's `wmgId` and `deliveryInstantISO`, found by
+  reading the thread back (the send itself returns only the thread id).
 
 ## Development
 

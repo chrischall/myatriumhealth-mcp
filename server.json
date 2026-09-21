@@ -21,6 +21,12 @@
           "description": "Override the fetchproxy WebSocket port (default 37149).",
           "isRequired": false,
           "format": "string"
+        },
+        {
+          "name": "MAH_READ_ONLY",
+          "description": "true refuses mah_reply_message sends (previews still work). Default false.",
+          "isRequired": false,
+          "format": "boolean"
         }
       ]
     }
