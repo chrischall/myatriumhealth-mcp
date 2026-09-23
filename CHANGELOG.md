@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.2](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.2.1...v1.2.2) (2026-09-23)
+
+
+### Bug Fixes
+
+* close patient-switch races, stop bridge tab switching, and gate replies on a preview token ([#71](https://github.com/chrischall/myatriumhealth-mcp/issues/71)) ([5da6129](https://github.com/chrischall/myatriumhealth-mcp/commit/5da6129de8caf760a1cbbdf542e2e963e708b3df))
+* **reply:** make a mah_reply_message confirmationToken good for one send ([#74](https://github.com/chrischall/myatriumhealth-mcp/issues/74)) ([40198c8](https://github.com/chrischall/myatriumhealth-mcp/commit/40198c8ecd1b9235b5d43fac9a1f61108b93d295))
+
 ## [1.2.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.2.0...v1.2.1) (2026-09-23)
 
 
