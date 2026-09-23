@@ -147,7 +147,7 @@ stated rather than inferred.
 | `mah_verify_code` | Submit the code the user received *(needs credentials)* |
 | `mah_list_patients` | The patients this login can open — the account holder and any proxy subjects |
 | `mah_get_patient_context` | Which patient the readers are serving, confirmed with the portal |
-| `mah_set_active_patient` | Point every reader at one of those patients; survives restarts |
+| `mah_set_active_patient` | Point every reader at one of those patients; survives restarts. Through the browser bridge this switches your own tab too, and a read refuses rather than switching it back if you change patients there |
 
 Every reading tool takes `view`: `compact` (the default) or `full`. The raw envelopes
 are large — test results ~33 KB, medications ~30 KB — so `compact` is what you want for
