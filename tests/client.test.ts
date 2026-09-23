@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { MyAtriumHealthClient } from '../src/client.js';
 import type { FetchInit, FetchResult, MahTransport } from '../src/transport.js';
 
@@ -268,5 +270,73 @@ describe('retryOnTimeout', () => {
     const writes = t.calls.filter((x) => x.path.startsWith('DocumentUpload/'));
     expect(writes).toHaveLength(2);
     expect(writes.every((x) => x.retryOnTimeout === undefined)).toBe(true);
+  });
+});
+
+describe('antiforgery token rotation', () => {
+  // The token was cached for the life of the process with no way to drop it.
+  // A new session (a re-login, or signing out and in again in the bridged tab)
+  // can mint a new one, and every POST then failed with "did not return JSON"
+  // until the server was restarted.
+  const oops = '<html><head><title>Oops!</title></head><body>error</body></html>';
+
+  function rotatingPortal() {
+    const state = { token: 'old', minted: 0 };
+    const t = new FakeTransport((i) => {
+      if (!i.path.startsWith('api/') && !i.path.includes('/')) {
+        state.minted++;
+        return ok(signedInPage(state.token));
+      }
+      return i.headers?.__RequestVerificationToken === state.token ? ok('{"ok":true}') : ok(oops);
+    });
+    return { state, t };
+  }
+
+  it('refetches the token after invalidateToken()', async () => {
+    const { state, t } = rotatingPortal();
+    const c = new MyAtriumHealthClient({ transport: t });
+    await c.api('allergies/LoadAllergies', {}, { retryOnTimeout: true });
+    state.token = 'new';
+    c.invalidateToken();
+    await expect(c.api('goals/LoadPatientGoals')).resolves.toEqual({ ok: true });
+    expect(state.minted).toBe(2);
+  });
+
+  it('recovers a READ from a rotated token by refetching it once', async () => {
+    const { state, t } = rotatingPortal();
+    const c = new MyAtriumHealthClient({ transport: t });
+    await c.api('allergies/LoadAllergies', {}, { retryOnTimeout: true });
+    state.token = 'new';
+    await expect(c.api('goals/LoadPatientGoals', {}, { retryOnTimeout: true })).resolves.toEqual({
+      ok: true,
+    });
+    await expect(
+      c.legacy('Clinical/CareTeam/Load', {}, {}, { retryOnTimeout: true }),
+    ).resolves.toEqual({ ok: true });
+  });
+
+  it('never re-sends a WRITE, but drops the stale token for the next call', async () => {
+    const { state, t } = rotatingPortal();
+    const c = new MyAtriumHealthClient({ transport: t });
+    await c.api('allergies/LoadAllergies', {}, { retryOnTimeout: true });
+    state.token = 'new';
+    const before = t.calls.filter((x) => x.path === 'api/conversations/SendReply').length;
+    await expect(c.api('conversations/SendReply', {})).rejects.toThrow(/did not return JSON/);
+    expect(t.calls.filter((x) => x.path === 'api/conversations/SendReply').length - before).toBe(1);
+    await expect(c.api('conversations/SendReply', {})).resolves.toEqual({ ok: true });
+  });
+
+  it('does not retry a read when the token did not change', async () => {
+    const t = new FakeTransport((i) => (i.path.startsWith('api/') ? ok(oops) : ok(signedInPage())));
+    const c = new MyAtriumHealthClient({ transport: t });
+    await expect(
+      c.api('allergies/LoadAllergies', {}, { retryOnTimeout: true }),
+    ).rejects.toThrow(/did not return JSON/);
+    expect(t.calls.filter((x) => x.path.startsWith('api/'))).toHaveLength(1);
+  });
+
+  it('drops the token whenever a new sign-in is established', () => {
+    const src = readFileSync(fileURLToPath(new URL('../src/index.ts', import.meta.url)), 'utf8');
+    expect(src).toMatch(/onSessionEstablished\([^)]*\)\s*=>\s*\{[^}]*client\.invalidateToken\(\)/s);
   });
 });

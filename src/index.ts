@@ -129,10 +129,14 @@ const client = new MyAtriumHealthClient({ transport });
 // confirmed patient be cached (see PatientContext).
 const patients = new PatientContext(auth !== undefined);
 // A fresh sign-in puts the portal back on the account holder, so the cached
-// "who is being served" must not outlive the session it was confirmed in.
+// "who is being served" must not outlive the session it was confirmed in —
+// and nor may the antiforgery token, which a new session can replace.
 // Subscribed on the AUTH object, which every sign-in path goes through —
 // including mah_sign_in and mah_verify_code, which never touch the transport.
-auth?.onSessionEstablished(() => patients.invalidate());
+auth?.onSessionEstablished(() => {
+  patients.invalidate();
+  client.invalidateToken();
+});
 
 await runMcp({
   name: 'myatriumhealth-mcp',

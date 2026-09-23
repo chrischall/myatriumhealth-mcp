@@ -110,13 +110,24 @@ function notSignedIn(): McpToolError {
   );
 }
 
+/**
+ * The portal answered with an HTML page where JSON was expected. One cause is
+ * an antiforgery token from an earlier session, so the client reacts to this
+ * one specifically — never to a transport failure or a malformed body.
+ */
+class HtmlAnswerError extends McpToolError {}
+
 export interface MyAtriumHealthClientOptions {
   transport: MahTransport;
 }
 
 export class MyAtriumHealthClient {
   private readonly transport: MahTransport;
-  /** Cached antiforgery token — one page fetch per process, not per request. */
+  /**
+   * Cached antiforgery token — one page fetch per SESSION, not per request.
+   * Dropped by {@link invalidateToken} and whenever a POST is answered with an
+   * HTML page, because a new session can mint a new token.
+   */
   private token: string | undefined;
   private inFlightToken: Promise<string> | undefined;
 
@@ -141,6 +152,11 @@ export class MyAtriumHealthClient {
     if (res.body.trim() === '') throw emptyBody(path);
     if (isAuthWall(res.body)) throw notSignedIn();
     return res.body;
+  }
+
+  /** Forget the cached token, e.g. after a new session was established. */
+  invalidateToken(): void {
+    this.token = undefined;
   }
 
   /**
@@ -192,7 +208,7 @@ export class MyAtriumHealthClient {
     if (!trimmed.startsWith('{') && !trimmed.startsWith('[') && !trimmed.startsWith('"')) {
       if (isAuthWall(body)) throw notSignedIn();
       const oops = /<title>([^<]*)</.exec(body)?.[1]?.trim();
-      throw new McpToolError(
+      throw new HtmlAnswerError(
         `${endpoint} did not return JSON${oops ? ` — the portal returned "${oops}"` : ''}.`,
         {
           // Two very different causes surface identically as non-JSON HTML: a
@@ -230,9 +246,8 @@ export class MyAtriumHealthClient {
     endpoint: string,
     opts: PostOptions = {},
   ): Promise<T> {
-    const token = await this.getToken();
-    return this.send<T>(
-      {
+    return this.post<T>(
+      (token) => ({
         method: 'POST',
         path,
         headers: {
@@ -243,9 +258,37 @@ export class MyAtriumHealthClient {
         body: typeof body === 'string' ? body : JSON.stringify(body),
         ...(opts.replay === false ? { replay: false as const } : {}),
         ...(opts.retryOnTimeout === true ? { retryOnTimeout: true as const } : {}),
-      },
+      }),
       endpoint,
+      opts.retryOnTimeout === true,
     );
+  }
+
+  /**
+   * Send a token-bearing POST, recovering from a token a new session replaced.
+   *
+   * An HTML answer or a sign-in page drops the cached token, so the next call
+   * fetches a fresh one. A READ is also re-sent once — but only when the fresh
+   * token actually differs, since otherwise the token was not the problem. A
+   * write is never re-sent: it may have been acted on.
+   */
+  private async post<T>(
+    build: (token: string) => FetchInit,
+    endpoint: string,
+    isRead: boolean,
+  ): Promise<T> {
+    const token = await this.getToken();
+    try {
+      return await this.send<T>(build(token), endpoint);
+    } catch (e) {
+      const html = e instanceof HtmlAnswerError;
+      if (!html && !(e instanceof NotAcceptedError)) throw e;
+      if (this.token === token) this.token = undefined;
+      if (!html || !isRead) throw e;
+      const fresh = await this.getToken();
+      if (fresh === token) throw e;
+      return this.send<T>(build(fresh), endpoint);
+    }
   }
 
   /**
@@ -378,15 +421,13 @@ export class MyAtriumHealthClient {
     form: Record<string, string> = {},
     opts: Pick<PostOptions, 'retryOnTimeout'> = {},
   ): Promise<T> {
-    const token = await this.getToken();
-    const qs = new URLSearchParams({
-      ...query,
-      noCache: String(Math.random()),
-    }).toString();
-    return this.send<T>(
-      {
+    return this.post<T>(
+      (token) => ({
         method: 'POST',
-        path: `${path.replace(/^\/+/, '')}?${qs}`,
+        path: `${path.replace(/^\/+/, '')}?${new URLSearchParams({
+          ...query,
+          noCache: String(Math.random()),
+        }).toString()}`,
         headers: {
           __RequestVerificationToken: token,
           'X-Requested-With': 'XMLHttpRequest',
@@ -394,8 +435,9 @@ export class MyAtriumHealthClient {
         },
         body: new URLSearchParams(form).toString(),
         ...(opts.retryOnTimeout === true ? { retryOnTimeout: true as const } : {}),
-      },
+      }),
       path,
+      opts.retryOnTimeout === true,
     );
   }
 }
