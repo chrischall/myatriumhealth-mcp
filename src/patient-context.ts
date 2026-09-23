@@ -150,6 +150,9 @@ export class PatientContext {
   /**
    * Make the session serve the selected patient, and say who that is.
    *
+   * Only where the server owns the session (bridge-less). Through the browser
+   * bridge a mismatch is REFUSED instead: that session is the user's own tab.
+   *
    * Re-asserted rather than assumed because a re-login silently returns the
    * portal to the account holder: the transport replays an expired session
    * without telling anyone, and a reader that trusted its last switch would
@@ -177,6 +180,24 @@ export class PatientContext {
     if (sameIdentity(serving, { displayName: want.displayName, age: want.age })) {
       this.applied = serving;
       return serving.displayName;
+    }
+
+    // Through the bridge the session is the user's OWN signed-in tab, so a
+    // switch here would flip the page they are looking at to another patient's
+    // chart — and whatever they did next in it would apply to the wrong person.
+    // A read never does that; only an explicit mah_set_active_patient may.
+    if (!this.sessionChangesAnnounced) {
+      const now = serving.displayName || 'the account holder';
+      throw new McpToolError(
+        `Your MyAtriumHealth browser tab is showing ${now}, but ${want.displayName} is the ` +
+          'selected patient. Nothing was read: reading would switch the patient in your own tab.',
+        {
+          hint:
+            `Call mah_set_active_patient to switch to ${want.displayName} deliberately (it switches ` +
+            `your browser tab too), select the account holder to read ${now}, or switch ` +
+            'patients in the browser yourself.',
+        },
+      );
     }
 
     const patient = (await listPatients(client)).find((p) => p.id === want.patientId);
