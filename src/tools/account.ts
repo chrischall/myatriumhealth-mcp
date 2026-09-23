@@ -22,7 +22,7 @@ export function registerAccountTools(
       return viewResponse(
         view,
         await patients.readAs(client, async () => {
-          return await client.api('health-summary/FetchHealthSummary');
+          return await client.api('health-summary/FetchHealthSummary', {}, { retryOnTimeout: true });
         }),
       );
     },
@@ -41,7 +41,7 @@ export function registerAccountTools(
       return viewResponse(
         view,
         await patients.readAs(client, async () => {
-          return await client.api('conversations/GetFoldersList');
+          return await client.api('conversations/GetFoldersList', {}, { retryOnTimeout: true });
         }),
       );
     },
@@ -120,7 +120,7 @@ export function registerAccountTools(
         await patients.readAs(client, async () => {
           const raw = await client.legacy('Insurance/Coverages/GetCoverages', {}, {
             isStandAlone: 'true',
-          });
+          }, { retryOnTimeout: true });
           return project(raw, isCompact(view), 'Insurance/Coverages/GetCoverages', (r: Record<string, unknown>) => {
               const buckets = [
                 'ActiveCoverages',
@@ -168,7 +168,7 @@ export function registerAccountTools(
       return viewResponse(
         view,
         await patients.readAs(client, async () => {
-          const raw = (await client.api('search/LoadMenuInfo')) as {
+          const raw = (await client.api('search/LoadMenuInfo', {}, { retryOnTimeout: true })) as {
             submenus?: { name?: string; menuItems?: { name?: string }[] }[];
           };
           // This endpoint currently answers 302 to /Home/FiveHundred — a server

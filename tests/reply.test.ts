@@ -314,6 +314,27 @@ describe('mah_reply_message — sending', () => {
     await tool(p).call({ conversationId: HTH, body: 'x', confirm: true });
     expect(p.calls.find((c) => c.path.endsWith('SendReply'))!.replay).toBe(false);
   });
+
+  // fetchproxy 3.2 re-sends a POST after a transport timeout only when told to.
+  // Each step of a send creates or changes portal state, so none may opt in;
+  // the reads around it (settings, the thread read-back) do.
+  it('never lets the bridge re-send a mutating step after a timeout', async () => {
+    const p = portal();
+    await tool(p, { attachmentsSupported: true }).call({
+      conversationId: HTH,
+      body: 'x',
+      confirm: true,
+      attachments: [{ filename: 'scan.png', contentBase64: png }],
+    });
+    const writes = p.calls.filter((c) => mutating.test(c.path));
+    expect(writes.map((c) => c.path.split('?')[0]!.replace(/^api\//, ''))).toEqual(
+      expect.arrayContaining(['conversations/GetComposeId', 'conversations/SaveReplyDraft', 'conversations/SendReply']),
+    );
+    expect(writes.every((c) => c.retryOnTimeout === undefined)).toBe(true);
+    const reads = p.calls.filter((c) => /GetComposeSettings|GetConversationDetails/.test(c.path));
+    expect(reads.length).toBeGreaterThan(0);
+    expect(reads.every((c) => c.retryOnTimeout === true)).toBe(true);
+  });
 });
 
 describe('mah_reply_message — the read-only gate', () => {

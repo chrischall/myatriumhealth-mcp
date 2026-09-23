@@ -28,6 +28,19 @@ const UPLOAD_CONTEXT = (organizationId: string) => ({
   context: { isPending: true, addDCSToCache: true, dcsSource: '820', organizationId },
 });
 
+/**
+ * Options for a POST. `retryOnTimeout` marks the call as a READ that the
+ * browser bridge may re-send after a timeout; leave it off anything that
+ * writes (see {@link FetchInit.retryOnTimeout}).
+ */
+export interface PostOptions {
+  replay?: false;
+  retryOnTimeout?: true;
+}
+
+/** Marks a POST that only reads, so the bridge may re-send it after a timeout. */
+const READ = { retryOnTimeout: true } as const;
+
 /** Path under the app root that reliably renders for a signed-in user. */
 const TOKEN_PAGE = 'Home';
 
@@ -205,7 +218,7 @@ export class MyAtriumHealthClient {
   async api<T = unknown>(
     endpoint: string,
     body: unknown = {},
-    opts: { replay?: false } = {},
+    opts: PostOptions = {},
   ): Promise<T> {
     return this.postJson<T>(`api/${endpoint.replace(/^\/+/, '')}`, body, endpoint, opts);
   }
@@ -215,7 +228,7 @@ export class MyAtriumHealthClient {
     path: string,
     body: unknown,
     endpoint: string,
-    opts: { replay?: false } = {},
+    opts: PostOptions = {},
   ): Promise<T> {
     const token = await this.getToken();
     return this.send<T>(
@@ -229,6 +242,7 @@ export class MyAtriumHealthClient {
         },
         body: typeof body === 'string' ? body : JSON.stringify(body),
         ...(opts.replay === false ? { replay: false as const } : {}),
+        ...(opts.retryOnTimeout === true ? { retryOnTimeout: true as const } : {}),
       },
       endpoint,
     );
@@ -245,7 +259,7 @@ export class MyAtriumHealthClient {
       messageId: '',
       organizationId,
       PageNonce: await this.pageNonce(),
-    });
+    }, READ);
   }
 
   /**
@@ -324,6 +338,8 @@ export class MyAtriumHealthClient {
     const [orgsRes, nonce] = await Promise.all([
       this.api<{ organizations?: Record<string, { isLocal?: boolean }> }>(
         'conversations/GetOrganizations',
+        {},
+        READ,
       ),
       this.pageNonce(),
     ]);
@@ -338,7 +354,7 @@ export class MyAtriumHealthClient {
       externalLoadParams,
       searchQuery: '',
       PageNonce: nonce,
-    });
+    }, READ);
   }
 
   /**
@@ -349,8 +365,8 @@ export class MyAtriumHealthClient {
   async careTeam(): Promise<{ internal: unknown; external: unknown }> {
     const common = { hfrId: '', sources: '', actions: '', ComponentNumber: '2' };
     const [internal, external] = await Promise.all([
-      this.legacy('Clinical/CareTeam/Load', { ...common, isPrimaryStandalone: 'true' }),
-      this.legacy('Clinical/CareTeam/LoadExternal', { ...common }),
+      this.legacy('Clinical/CareTeam/Load', { ...common, isPrimaryStandalone: 'true' }, {}, READ),
+      this.legacy('Clinical/CareTeam/LoadExternal', { ...common }, {}, READ),
     ]);
     return { internal, external };
   }
@@ -360,6 +376,7 @@ export class MyAtriumHealthClient {
     path: string,
     query: Record<string, string> = {},
     form: Record<string, string> = {},
+    opts: Pick<PostOptions, 'retryOnTimeout'> = {},
   ): Promise<T> {
     const token = await this.getToken();
     const qs = new URLSearchParams({
@@ -376,6 +393,7 @@ export class MyAtriumHealthClient {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: new URLSearchParams(form).toString(),
+        ...(opts.retryOnTimeout === true ? { retryOnTimeout: true as const } : {}),
       },
       path,
     );

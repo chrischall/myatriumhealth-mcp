@@ -35,6 +35,13 @@ export interface FetchInit {
    * confirmed for. Default: replay once.
    */
   replay?: false;
+  /**
+   * `true` lets the browser bridge re-send this request after a transport
+   * timeout. fetchproxy 3.2 re-sends only GET/HEAD/OPTIONS by default, and
+   * every MyChart read is a POST — so a READ opts in here. Never set it on
+   * anything that creates, changes or sends: a re-send could do it twice.
+   */
+  retryOnTimeout?: true;
 }
 
 export interface FetchResult {

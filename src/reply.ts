@@ -186,9 +186,11 @@ async function prepare(client: MyAtriumHealthClient, input: ReplyInput) {
     );
   }
   const organizationId = details.organizationId ?? '';
-  const settings = (await client.api('conversations/GetComposeSettings', {
-    organizationId,
-  })) as ComposeSettings;
+  const settings = (await client.api(
+    'conversations/GetComposeSettings',
+    { organizationId },
+    { retryOnTimeout: true },
+  )) as ComposeSettings;
 
   if (input.body.trim() === '') throw new McpToolError('The reply body is empty.');
   const maxLen = limit(settings.maxMessageLength, 'message length limit');

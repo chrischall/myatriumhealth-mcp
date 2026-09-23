@@ -79,6 +79,7 @@ export class FetchproxyTransport implements MahTransport {
       path: `/${APP_ROOT}/${init.path.replace(/^\/+/, '')}`,
       ...(init.headers !== undefined ? { headers: init.headers } : {}),
       ...(init.body !== undefined ? { body: init.body } : {}),
+      ...(init.retryOnTimeout === true ? { retryOnTimeout: true } : {}),
     });
     return { status: response.status, body: response.body, url: response.url };
   }

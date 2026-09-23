@@ -26,7 +26,7 @@ export function registerResultTools(
       return viewResponse(
         view,
         await patients.readAs(client, async () => {
-          const raw = await client.api('test-results/GetList');
+          const raw = await client.api('test-results/GetList', {}, { retryOnTimeout: true });
           return project(raw, isCompact(view), 'test-results/GetList', (r: {
               // `newResults` is a MAP keyed by an opaque result handle, not an array.
               newResults?: Record<string, Record<string, unknown>>;
