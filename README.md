@@ -198,8 +198,10 @@ local organization returns HTTP 500. The client assembles this from
   and body and sends nothing. The send itself is irreversible and provider-visible.
 - **A send must follow its own preview.** The preview returns a `confirmationToken`
   bound to the patient, thread, body and attachments it showed; `confirm: true` is
-  refused without it, with one for anything else, or after 10 minutes. So message text
-  the model has read cannot talk it into a one-call send the user never saw.
+  refused without it, with one for anything else, after 10 minutes, or once it has been
+  used for a send — each preview authorizes one send, so a retry after an uncertain send
+  needs a fresh preview. So message text the model has read cannot talk it into a
+  one-call send the user never saw.
 - **`MAH_READ_ONLY=true` refuses every send.** The tool stays registered — a hosted
   connector publishes the tool list of a child with no env of its own, so a tool that
   registered only when writes were allowed would disappear for everyone.
