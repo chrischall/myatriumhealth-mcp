@@ -277,3 +277,72 @@ describe('caching is only allowed where invalidation is possible', () => {
     expect(second).toBe(first);
   });
 });
+
+describe('a patient switch racing a read or a write', () => {
+  // Parallel tool calls are routine, and the active patient is ONE piece of
+  // state inside the portal session. A switch that lands while a read is in
+  // flight hands back the new patient's chart under the old patient's name.
+  function switchingClient() {
+    const state = { name: 'Chris', age: 45 as number | null };
+    return {
+      state,
+      page: async (p: string) => {
+        if (p.startsWith('ProxySwitch/SwitchContext')) { state.name = 'Finn'; state.age = 7; }
+        return page;
+      },
+      api: async () => ({ patientFirstName: state.name, header: { patientAge: state.age } }),
+    };
+  }
+  const finn = { id: 'WP-24child', displayName: 'Finn', isAccountHolder: false, relationship: 'proxy' as const };
+  const tick = () => new Promise((r) => setTimeout(r, 10));
+
+  it('never labels a read with a patient the session left mid-read', async () => {
+    process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-race-read-${Date.now()}.json`;
+    const { PatientContext } = await import('../src/patient-context.js');
+    const ctx = new PatientContext();
+    const client = switchingClient();
+
+    const read = ctx.readAs(client as never, async () => {
+      await tick();
+      return client.state.name;
+    });
+    const sel = ctx.select(client as never, finn);
+    const [r] = await Promise.all([read, sel]);
+    expect(r.data).toBe(r.patient);
+  });
+
+  it('does not let a switch land between a write confirming the patient and sending', async () => {
+    process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-race-write-${Date.now()}.json`;
+    const { PatientContext } = await import('../src/patient-context.js');
+    const ctx = new PatientContext();
+    const client = switchingClient();
+
+    const write = ctx.writeAs(client as never, async ({ patient, assertUnchanged }) => {
+      await tick();
+      assertUnchanged();
+      return { confirmedAs: patient, sentAs: client.state.name };
+    });
+    const sel = ctx.select(client as never, finn);
+    const [w] = await Promise.all([write, sel]);
+    expect(w.sentAs).toBe(w.confirmedAs);
+  });
+
+  it('still lets independent reads run side by side', async () => {
+    process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-parallel-${Date.now()}.json`;
+    const { PatientContext } = await import('../src/patient-context.js');
+    const ctx = new PatientContext();
+    const client = switchingClient();
+    let inFlight = 0;
+    let peak = 0;
+    const read = () =>
+      ctx.readAs(client as never, async () => {
+        inFlight++;
+        peak = Math.max(peak, inFlight);
+        await tick();
+        inFlight--;
+        return 1;
+      });
+    await Promise.all([read(), read(), read()]);
+    expect(peak).toBeGreaterThan(1);
+  });
+});

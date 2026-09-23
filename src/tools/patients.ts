@@ -36,8 +36,8 @@ export function registerPatientTools(
       // Re-assert first: after a restart the readers would apply the stored
       // selection, so reporting the portal's pre-switch state would describe a
       // different patient than the next read returns.
-      await patients.ensure(client);
-      const serving = await whoAmI(client);
+      // Through readAs, so a switch in flight cannot land between the two.
+      const { data: serving } = await patients.readAs(client, () => whoAmI(client));
       return minifiedResult({
         servingNow: serving.displayName,
         age: serving.age,
