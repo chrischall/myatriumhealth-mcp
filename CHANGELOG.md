@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.2.0...v1.2.1) (2026-09-23)
+
+
+### Bug Fixes
+
+* **deps:** require zod ^4.6.5 to match @chrischall/mcp-utils 2.4.0 ([#70](https://github.com/chrischall/myatriumhealth-mcp/issues/70)) ([9986dbb](https://github.com/chrischall/myatriumhealth-mcp/commit/9986dbb1a8f6b51cfbc86fe524cf7b100bca60bc))
+* **deps:** upgrade @chrischall/mcp-utils to 2.4.0 and @fetchproxy/* to 3.2.0 ([#68](https://github.com/chrischall/myatriumhealth-mcp/issues/68)) ([4c7f48c](https://github.com/chrischall/myatriumhealth-mcp/commit/4c7f48cdda38ee5bf3ab1172f83897cf2ad1f00d))
+
 ## [1.2.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.1.1...v1.2.0) (2026-09-21)
 
 
