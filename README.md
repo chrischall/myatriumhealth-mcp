@@ -135,7 +135,7 @@ stated rather than inferred.
 | `mah_get_health_summary` | Health-summary header and action plans |
 | `mah_list_message_folders` | Message Center folders with unread counts |
 | `mah_list_messages` | Message Center conversations for a folder, each with the `conversationId` to reply to |
-| `mah_reply_message` | Reply to a conversation as the active patient — previews unless `confirm: true` *(irreversible)* |
+| `mah_reply_message` | Reply to a conversation as the active patient — previews unless `confirm: true` with the preview's `confirmationToken` *(irreversible)* |
 | `mah_list_insurance` | Insurance coverages on file |
 | `mah_list_care_team` | Care team providers, internal and external |
 | `mah_list_billing_accounts` | Billing accounts and balances (parsed from HTML) |
@@ -196,6 +196,10 @@ local organization returns HTTP 500. The client assembles this from
 
 - **It previews by default.** Without `confirm: true` it returns the thread, recipients
   and body and sends nothing. The send itself is irreversible and provider-visible.
+- **A send must follow its own preview.** The preview returns a `confirmationToken`
+  bound to the patient, thread, body and attachments it showed; `confirm: true` is
+  refused without it, with one for anything else, or after 10 minutes. So message text
+  the model has read cannot talk it into a one-call send the user never saw.
 - **`MAH_READ_ONLY=true` refuses every send.** The tool stays registered — a hosted
   connector publishes the tool list of a child with no env of its own, so a tool that
   registered only when writes were allowed would disappear for everyone.
