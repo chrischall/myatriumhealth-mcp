@@ -10,6 +10,44 @@ import {
   type PatientIdentity,
 } from './patients.js';
 
+/**
+ * A readers/writer lock over the portal session's active patient.
+ *
+ * The active patient is ONE piece of state inside the session, shared by every
+ * request. Reads may run side by side — they all want the same patient — but a
+ * switch, or a send that must go out as the patient it confirmed, has to have
+ * the session to itself: a switch landing mid-read labels one patient's chart
+ * with another's name, and one landing mid-send posts as someone else.
+ */
+class SessionLock {
+  private lastExclusive: Promise<void> = Promise.resolve();
+  private shared = new Set<Promise<void>>();
+
+  /** Run alongside other shared holders, after any exclusive one queued earlier. */
+  runShared<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.lastExclusive.then(fn);
+    const done = run.then(
+      () => {},
+      () => {},
+    );
+    this.shared.add(done);
+    void done.then(() => this.shared.delete(done));
+    return run;
+  }
+
+  /** Run alone: after every holder queued earlier, before any queued later. */
+  runExclusive<T>(fn: () => Promise<T>): Promise<T> {
+    const prior = Promise.all([this.lastExclusive, ...this.shared]);
+    this.shared = new Set();
+    const run = prior.then(fn);
+    this.lastExclusive = run.then(
+      () => {},
+      () => {},
+    );
+    return run;
+  }
+}
+
 interface StoredContext {
   patientId: string;
   displayName: string;
@@ -66,8 +104,14 @@ export class PatientContext {
    */
   private applied: PatientIdentity | undefined;
 
-  /** Bumped by [invalidate]. Lets a read notice a sign-in that happened mid-flight. */
+  /**
+   * Bumped by [invalidate] and by [select]: anything that changes which patient
+   * the session serves. Lets a read notice a change that happened mid-flight.
+   */
   private generation = 0;
+
+  /** Serialises switches and sends against reads; see {@link SessionLock}. */
+  private readonly lock = new SessionLock();
 
   private desired(): StoredContext | null {
     return this.store.load() ?? null;
@@ -78,7 +122,15 @@ export class PatientContext {
     return this.desired() === null;
   }
 
-  async select(client: MyAtriumHealthClient, patient: Patient): Promise<PatientIdentity> {
+  /** Switch the session to [patient] and store the choice. Never overlaps a read or send. */
+  select(client: MyAtriumHealthClient, patient: Patient): Promise<PatientIdentity> {
+    return this.lock.runExclusive(() => this.selectNow(client, patient));
+  }
+
+  private async selectNow(client: MyAtriumHealthClient, patient: Patient): Promise<PatientIdentity> {
+    // Bumped BEFORE the switch: once it is issued the session may be serving
+    // someone else, whether or not the confirmation below succeeds.
+    this.generation++;
     const identity = await switchTo(client, patient);
     if (patient.isAccountHolder) {
       // Returning to the default is a CLEARED preference, not a stored one, so
@@ -97,6 +149,9 @@ export class PatientContext {
 
   /**
    * Make the session serve the selected patient, and say who that is.
+   *
+   * Only where the server owns the session (bridge-less). Through the browser
+   * bridge a mismatch is REFUSED instead: that session is the user's own tab.
    *
    * Re-asserted rather than assumed because a re-login silently returns the
    * portal to the account holder: the transport replays an expired session
@@ -125,6 +180,24 @@ export class PatientContext {
     if (sameIdentity(serving, { displayName: want.displayName, age: want.age })) {
       this.applied = serving;
       return serving.displayName;
+    }
+
+    // Through the bridge the session is the user's OWN signed-in tab, so a
+    // switch here would flip the page they are looking at to another patient's
+    // chart — and whatever they did next in it would apply to the wrong person.
+    // A read never does that; only an explicit mah_set_active_patient may.
+    if (!this.sessionChangesAnnounced) {
+      const now = serving.displayName || 'the account holder';
+      throw new McpToolError(
+        `Your MyAtriumHealth browser tab is showing ${now}, but ${want.displayName} is the ` +
+          'selected patient. Nothing was read: reading would switch the patient in your own tab.',
+        {
+          hint:
+            `Call mah_set_active_patient to switch to ${want.displayName} deliberately (it switches ` +
+            `your browser tab too), select the account holder to read ${now}, or switch ` +
+            'patients in the browser yourself.',
+        },
+      );
     }
 
     const patient = (await listPatients(client)).find((p) => p.id === want.patientId);
@@ -165,7 +238,14 @@ export class PatientContext {
    * faster than it can be used, and returning data whose owner cannot be
    * established is the one outcome worth refusing.
    */
-  async readAs<T>(
+  readAs<T>(
+    client: MyAtriumHealthClient,
+    read: () => Promise<T>,
+  ): Promise<{ patient: string; data: T }> {
+    return this.lock.runShared(() => this.readNow(client, read));
+  }
+
+  private async readNow<T>(
     client: MyAtriumHealthClient,
     read: () => Promise<T>,
   ): Promise<{ patient: string; data: T }> {
@@ -192,7 +272,16 @@ export class PatientContext {
    * step; it throws if any sign-in has happened since the patient was
    * confirmed, while nothing has been sent yet.
    */
-  async writeAs<T>(
+  writeAs<T>(
+    client: MyAtriumHealthClient,
+    write: (ctx: { patient: string; assertUnchanged: () => void }) => Promise<T>,
+  ): Promise<T> {
+    // Exclusive, so no switch can land between confirming the patient and the
+    // send; assertUnchanged still covers the re-sign-in nothing can hold off.
+    return this.lock.runExclusive(() => this.writeNow(client, write));
+  }
+
+  private async writeNow<T>(
     client: MyAtriumHealthClient,
     write: (ctx: { patient: string; assertUnchanged: () => void }) => Promise<T>,
   ): Promise<T> {

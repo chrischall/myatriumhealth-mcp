@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MyAtriumHealthClient } from '../src/client.js';
 import type { FetchInit, FetchResult, MahTransport } from '../src/transport.js';
 import { PatientContext } from '../src/patient-context.js';
@@ -143,7 +143,24 @@ function tool(p: Portal, opts: { readOnly?: boolean; attachmentsSupported?: bool
   return {
     def: h.def,
     patients,
+    /**
+     * Calls the tool the way an approved send happens: a confirm: true call is
+     * preceded by its preview, whose confirmationToken it carries. The preview's
+     * requests are then dropped from the log so assertions see only the send.
+     */
     call: async (args: Record<string, unknown>) => {
+      let extra: Record<string, unknown> = {};
+      if (args.confirm === true && !('confirmationToken' in args)) {
+        const preview = await h.fn({ view: undefined, ...args, confirm: false });
+        const token = (JSON.parse(preview.content[0]!.text) as Record<string, unknown>).confirmationToken;
+        extra = { confirmationToken: token };
+        p.calls.length = 0;
+      }
+      const r = await h.fn({ view: undefined, ...args, ...extra });
+      return JSON.parse(r.content[0]!.text) as Record<string, unknown>;
+    },
+    /** One call, exactly as given — no preview first. */
+    raw: async (args: Record<string, unknown>) => {
       const r = await h.fn({ view: undefined, ...args });
       return JSON.parse(r.content[0]!.text) as Record<string, unknown>;
     },
@@ -436,5 +453,89 @@ describe('mah_reply_message — the tool surface', () => {
     expect(def.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
     expect(def.description).toMatch(/irreversible/i);
     expect(def.description).toMatch(/confirm/i);
+  });
+});
+
+describe('mah_reply_message — a send must follow its own preview', () => {
+  // confirm: true alone was enough to send, so text injected into a message the
+  // model had read (a preview from an automated sender, say) could drive a send
+  // the user never saw. A send now needs the token its preview returned, bound
+  // to the exact patient, thread, body and attachments that were shown.
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns a confirmation token with the preview', async () => {
+    const p = portal();
+    const out = await tool(p).raw({ conversationId: HTH, body: 'Hello there' });
+    expect(typeof out.confirmationToken).toBe('string');
+    expect(String(out.nextStep)).toMatch(/confirmationToken/);
+  });
+
+  it('refuses confirm: true without a token, and sends nothing', async () => {
+    const p = portal();
+    await expect(tool(p).raw({ conversationId: HTH, body: 'x', confirm: true })).rejects.toThrow(
+      /confirmationToken|preview/i,
+    );
+    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+  });
+
+  it('refuses a token minted for a different body', async () => {
+    const p = portal();
+    const t = tool(p);
+    const preview = await t.raw({ conversationId: HTH, body: 'what the user saw' });
+    await expect(
+      t.raw({ conversationId: HTH, body: 'something else', confirm: true, confirmationToken: preview.confirmationToken }),
+    ).rejects.toThrow(/preview/i);
+    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+  });
+
+  it('refuses a token minted for different attachments', async () => {
+    const p = portal();
+    const t = tool(p);
+    const preview = await t.raw({ conversationId: HTH, body: 'x' });
+    await expect(
+      t.raw({
+        conversationId: HTH,
+        body: 'x',
+        attachments: [{ filename: 'scan.png', contentBase64: png }],
+        confirm: true,
+        confirmationToken: preview.confirmationToken,
+      }),
+    ).rejects.toThrow(/preview/i);
+    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+  });
+
+  it('refuses a forged or mangled token', async () => {
+    const p = portal();
+    await expect(
+      tool(p).raw({ conversationId: HTH, body: 'x', confirm: true, confirmationToken: '9999999999999.abc' }),
+    ).rejects.toThrow(/preview/i);
+    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+  });
+
+  it('refuses an expired token', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const p = portal();
+    const t = tool(p);
+    const preview = await t.raw({ conversationId: HTH, body: 'x' });
+    vi.setSystemTime(Date.now() + 11 * 60 * 1000);
+    await expect(
+      t.raw({ conversationId: HTH, body: 'x', confirm: true, confirmationToken: preview.confirmationToken }),
+    ).rejects.toThrow(/expired|preview/i);
+    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+  });
+
+  it('sends with the token from a preview of the same reply', async () => {
+    const p = portal();
+    const t = tool(p);
+    const preview = await t.raw({ conversationId: HTH, body: "I'd like another refill at the same dosage." });
+    const out = await t.raw({
+      conversationId: HTH,
+      body: "I'd like another refill at the same dosage.",
+      confirm: true,
+      confirmationToken: preview.confirmationToken,
+    });
+    expect(out.sent).toBe(true);
   });
 });

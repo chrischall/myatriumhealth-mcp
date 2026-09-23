@@ -41,7 +41,10 @@ export function registerVisitTools(
   server.registerTool(
     'mah_list_past_visits',
     {
-      description: 'List past MyAtriumHealth visits, grouped by organization.',
+      description:
+        'List past MyAtriumHealth visits, grouped by organization. Compact output is ' +
+        '{ items, complete, note }: complete is false when older visits exist, and the note ' +
+        'says how to page back with before.',
       annotations: toolAnnotations({ readOnly: true }),
       inputSchema: z.object({
         before: z
@@ -80,6 +83,25 @@ export function registerVisitTools(
                       }),
                     ),
                   ),
+              (r: {
+                List?: Record<string, { Organization?: { OrganizationName?: string }; HasMoreData?: unknown }>;
+              }) => {
+                const groups = Object.values(r.List ?? {});
+                const flags = groups.filter((g) => typeof g.HasMoreData === 'boolean');
+                if (flags.length === 0) return {};
+                const more = flags.filter((g) => g.HasMoreData === true);
+                if (more.length === 0) return { complete: true };
+                const where = more
+                  .map((g) => g.Organization?.OrganizationName)
+                  .filter((n): n is string => typeof n === 'string' && n !== '');
+                return {
+                  complete: false,
+                  note:
+                    `Older visits exist${where.length > 0 ? ` at ${where.join(', ')}` : ''}. ` +
+                    'Call again with before set to an ISO instant earlier than the oldest visit ' +
+                    'listed here to page back.',
+                };
+              },
             );
         }),
       );

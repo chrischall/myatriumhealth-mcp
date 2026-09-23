@@ -36,15 +36,16 @@ export function registerPatientTools(
       // Re-assert first: after a restart the readers would apply the stored
       // selection, so reporting the portal's pre-switch state would describe a
       // different patient than the next read returns.
-      await patients.ensure(client);
-      const serving = await whoAmI(client);
+      // Through readAs, so a switch in flight cannot land between the two.
+      const { data: serving } = await patients.readAs(client, () => whoAmI(client));
       return minifiedResult({
         servingNow: serving.displayName,
         age: serving.age,
         isDefault: patients.isDefault(),
         note: patients.isDefault()
           ? 'No patient selected, so reads return the account holder.'
-          : 'A patient is selected; it is re-applied automatically after any re-sign-in.',
+          : 'A patient is selected. When the server signs in itself it is re-applied after any ' +
+            're-sign-in; through the browser bridge, reads refuse instead of switching your tab.',
       });
     },
   );
@@ -55,7 +56,9 @@ export function registerPatientTools(
       description:
         'Point every reading tool at one of the patients from mah_list_patients. The ' +
         'switch is confirmed with the portal before it is stored, and it survives ' +
-        'restarts. Select the account holder to return to the default.',
+        'restarts. Select the account holder to return to the default. Through the browser ' +
+        'bridge this also switches the patient shown in your own signed-in tab, and reads ' +
+        'refuse (rather than switch it back) if you later change patients there yourself.',
       annotations: toolAnnotations({ readOnly: false, idempotent: true, destructive: false }),
       inputSchema: z.object({
         patient_id: z.string().min(1).describe('id from mah_list_patients'),

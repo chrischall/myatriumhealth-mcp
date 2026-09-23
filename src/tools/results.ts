@@ -16,7 +16,9 @@ export function registerResultTools(
     {
       description:
         'List lab and imaging results: name, abnormal flag, date, ordering provider and any provider comment. ' +
-        'Individual result values load on the detail page and are not in this list.',
+        'Individual result values load on the detail page and are not in this list. Compact ' +
+        'output is { items, complete, note }: complete is false when the portal loaded only ' +
+        'part of the history.',
       annotations: toolAnnotations({ readOnly: true }),
       inputSchema: z.object({
         view: viewArg(),
@@ -47,6 +49,19 @@ export function registerResultTools(
                       ),
                     });
                   }),
+              (r: { areResultsFullyLoaded?: unknown }) => {
+                if (typeof r.areResultsFullyLoaded !== 'boolean') return {};
+                return r.areResultsFullyLoaded
+                  ? { complete: true }
+                  : {
+                      complete: false,
+                      note:
+                        'MyAtriumHealth loaded only part of the results history, so older results ' +
+                        'exist that are not listed. This tool cannot page to them yet (the ' +
+                        "portal's load-more request has not been captured); they are visible " +
+                        'in the portal.',
+                    };
+              },
             );
         }),
       );

@@ -7,11 +7,23 @@
  * WARN to stderr and return the RAW response rather than an empty projection —
  * degrade, never break.
  */
+/**
+ * Whether a paged endpoint returned everything. A bare array reads as the
+ * whole history, so a reader whose endpoint pages says so alongside it.
+ */
+export interface Completeness {
+  /** The portal's own flag; absent when it did not say. */
+  complete?: boolean;
+  /** What is missing and how to get it, when something is. */
+  note?: string;
+}
+
 export function project<T>(
   raw: unknown,
   compact: boolean,
   endpoint: string,
   pick: (raw: never) => T[] | undefined,
+  completeness?: (raw: never) => Completeness,
 ): unknown {
   if (!compact) return raw;
   let out: T[] | undefined;
@@ -27,7 +39,16 @@ export function project<T>(
     );
     return raw;
   }
-  return out;
+  if (completeness === undefined) return out;
+  // Returned as { items, complete, note } rather than a bare array: the flags
+  // are the only thing telling a first page from the whole history.
+  let c: Completeness = {};
+  try {
+    c = completeness(raw as never);
+  } catch {
+    c = {};
+  }
+  return tidy({ items: out, complete: c.complete, note: c.note });
 }
 
 /** Drop keys whose value is null/undefined/'' so compact output stays compact. */
