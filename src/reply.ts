@@ -243,12 +243,26 @@ function fingerprint(patient: string, input: ReplyInput): string {
   ]);
 }
 
-const sign = (expires: number, fp: string): string =>
-  createHmac('sha256', CONFIRMATION_KEY).update(`${expires}\n${fp}`).digest('base64url');
+const sign = (expires: number, nonce: string, fp: string): string =>
+  createHmac('sha256', CONFIRMATION_KEY).update(`${expires}\n${nonce}\n${fp}`).digest('base64url');
+
+/**
+ * Tokens already spent on a send, by MAC, with their expiry. A token is spent
+ * the moment a send is authorized with it and kept until it would have expired
+ * anyway, so one preview authorizes one send — a retry after an uncertain send
+ * needs a fresh preview, not the old token.
+ */
+const spentConfirmations = new Map<string, number>();
+
+function pruneSpent(now: number): void {
+  for (const [mac, expires] of spentConfirmations) if (now > expires) spentConfirmations.delete(mac);
+}
 
 function mintConfirmation(fp: string): string {
   const expires = Date.now() + CONFIRMATION_TTL_MS;
-  return `${expires}.${sign(expires, fp)}`;
+  // The nonce keeps two previews of the same reply from sharing a token.
+  const nonce = randomBytes(9).toString('base64url');
+  return `${expires}.${nonce}.${sign(expires, nonce, fp)}`;
 }
 
 /**
@@ -259,7 +273,7 @@ function mintConfirmation(fp: string): string {
  * token from its own preview means a send always follows a preview of that
  * exact patient, thread, body and attachments, which is what the user is shown.
  */
-function checkConfirmation(token: string | undefined, fp: string): void {
+function checkConfirmation(token: string | undefined, fp: string): { release: () => void } {
   const again =
     'Call mah_reply_message without confirm to preview this exact reply, show the preview ' +
     'to the user, and once they approve pass its confirmationToken with confirm: true.';
@@ -269,22 +283,45 @@ function checkConfirmation(token: string | undefined, fp: string): void {
       { hint: again },
     );
   }
-  const [expiresRaw, mac] = token.split('.', 2);
+  const [expiresRaw, nonce, mac, ...rest] = token.split('.');
   const expires = Number(expiresRaw);
-  const want = Buffer.from(sign(expires, fp));
+  const want = Buffer.from(sign(expires, nonce ?? '', fp));
   const got = Buffer.from(mac ?? '');
-  if (!Number.isSafeInteger(expires) || got.length !== want.length || !timingSafeEqual(got, want)) {
+  if (
+    rest.length > 0 ||
+    !nonce ||
+    !Number.isSafeInteger(expires) ||
+    got.length !== want.length ||
+    !timingSafeEqual(got, want)
+  ) {
     throw new McpToolError(
       'Nothing was sent: the confirmationToken does not match a preview of this patient, ' +
         'thread, body and attachments.',
       { hint: again },
     );
   }
-  if (Date.now() > expires) {
+  const now = Date.now();
+  if (now > expires) {
     throw new McpToolError('Nothing was sent: the preview this confirmationToken came from has expired.', {
       hint: again,
     });
   }
+  pruneSpent(now);
+  const key = mac as string;
+  if (spentConfirmations.has(key)) {
+    throw new McpToolError(
+      'Nothing was sent: this confirmationToken has already been used. Each preview authorizes one send.',
+      {
+        hint:
+          'If an earlier send was reported as uncertain, check the thread with mah_list_messages ' +
+          'first — it may already have gone out. ' +
+          again,
+      },
+    );
+  }
+  // Spent now, before anything is sent, so a concurrent call cannot reuse it.
+  spentConfirmations.set(key, expires);
+  return { release: () => spentConfirmations.delete(key) };
 }
 
 /** The portal accepted the reply but it could not be read back. */
@@ -338,10 +375,16 @@ export async function replyToConversation(
         hint: 'Send without attachments, or set MAH_USERNAME and MAH_PASSWORD so the server signs in itself.',
       });
     }
-    checkConfirmation(input.confirmationToken, fp);
+    const confirmation = checkConfirmation(input.confirmationToken, fp);
 
-    assertUnchanged();
-    const composeId = await client.api<string>('conversations/GetComposeId', {});
+    let composeId: string;
+    try {
+      assertUnchanged();
+      composeId = await client.api<string>('conversations/GetComposeId', {});
+    } catch (e) {
+      confirmation.release();
+      throw e;
+    }
     const uploaded: Awaited<ReturnType<MyAtriumHealthClient['uploadDocument']>>[] = [];
     const cleanUp = async (): Promise<void> => {
       for (const d of uploaded) await client.deleteDocument(d, p.organizationId).catch(() => {});
@@ -375,7 +418,9 @@ export async function replyToConversation(
       }
       assertUnchanged();
     } catch (e) {
+      // Nothing went out, so the preview has not been used up.
       await cleanUp();
+      confirmation.release();
       throw e;
     }
 
@@ -385,6 +430,7 @@ export async function replyToConversation(
     } catch (e) {
       if (e instanceof NotAcceptedError) {
         await cleanUp();
+        confirmation.release();
         throw e;
       }
       throw new McpToolError(

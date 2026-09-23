@@ -539,3 +539,59 @@ describe('mah_reply_message — a send must follow its own preview', () => {
     expect(out.sent).toBe(true);
   });
 });
+
+describe('mah_reply_message — a confirmation token authorizes one send', () => {
+  // A token was good for ten minutes however often it was used, so one
+  // approved preview could post the same reply again and again — most
+  // plausibly as a "retry" after a send whose outcome was uncertain.
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const BODY = "I'd like another refill at the same dosage.";
+
+  it('refuses a second send with the same token, and sends nothing more', async () => {
+    const p = portal();
+    const t = tool(p);
+    const preview = await t.raw({ conversationId: HTH, body: BODY });
+    const args = { conversationId: HTH, body: BODY, confirm: true, confirmationToken: preview.confirmationToken };
+    expect((await t.raw(args)).sent).toBe(true);
+    p.calls.length = 0;
+    await expect(t.raw(args)).rejects.toThrow(/already been used|preview/i);
+    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+  });
+
+  it('refuses a retry with the same token after an uncertain send', async () => {
+    const p = portal({ sendReplyAnswer: '""', newBodyLines: ['something else entirely'] });
+    const t = tool(p);
+    const preview = await t.raw({ conversationId: HTH, body: 'x' });
+    const args = { conversationId: HTH, body: 'x', confirm: true, confirmationToken: preview.confirmationToken };
+    await expect(t.raw(args)).rejects.toThrow(/may have been sent/i);
+    p.calls.length = 0;
+    await expect(t.raw(args)).rejects.toThrow(/already been used|preview/i);
+    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+  });
+
+  it('keeps the token good when the send failed before anything went out', async () => {
+    const p = portal({ saveDraftAnswer: '<title>Oops!</title>' });
+    const t = tool(p);
+    const preview = await t.raw({ conversationId: HTH, body: 'x' });
+    const args = { conversationId: HTH, body: 'x', confirm: true, confirmationToken: preview.confirmationToken };
+    await expect(t.raw(args)).rejects.toThrow(/SaveReplyDraft/);
+    p.calls.length = 0;
+    // Still refused by the portal, but not for a spent token: it got as far as the draft again.
+    await expect(t.raw(args)).rejects.toThrow(/SaveReplyDraft/);
+    expect(endpoints(p).filter((e) => e.endsWith('SendReply'))).toEqual([]);
+  });
+
+  it('gives two previews of the same reply distinct tokens, each good once', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const p = portal();
+    const t = tool(p);
+    const a = await t.raw({ conversationId: HTH, body: BODY });
+    const b = await t.raw({ conversationId: HTH, body: BODY });
+    expect(a.confirmationToken).not.toBe(b.confirmationToken);
+    expect((await t.raw({ conversationId: HTH, body: BODY, confirm: true, confirmationToken: a.confirmationToken })).sent).toBe(true);
+    expect((await t.raw({ conversationId: HTH, body: BODY, confirm: true, confirmationToken: b.confirmationToken })).sent).toBe(true);
+  });
+});
