@@ -31,7 +31,7 @@ export function registerVisitTools(
           const raw = await client.legacy('Visits/VisitsList/LoadUpcoming', {
             timeZone,
             ComponentNumber: '5',
-          });
+          }, {}, { retryOnTimeout: true });
           return raw;
         }),
       );
@@ -60,7 +60,7 @@ export function registerVisitTools(
             searchString: '',
             oldestRenderedDate: before ?? new Date().toISOString(),
             ComponentNumber: '7',
-          });
+          }, {}, { retryOnTimeout: true });
           return project(raw, isCompact(view), 'Visits/VisitsList/LoadPast', (r: {
               List?: Record<
                 string,

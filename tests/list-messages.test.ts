@@ -71,4 +71,20 @@ describe('the browser bridge', () => {
       t.fetch({ method: 'POST', path: 'DocumentUpload/UploadFile', body: new FormData() }),
     ).rejects.toThrow(/bridge/i);
   });
+
+  // fetchproxy 3.2 re-sends a POST after a timeout only when asked: the flag
+  // must reach it for a read, and must stay absent for everything else.
+  it('forwards retryOnTimeout to fetchproxy only when the caller set it', async () => {
+    const t = new FetchproxyTransport({ version: '0.0.0' });
+    const seen: Record<string, unknown>[] = [];
+    (t as unknown as { inner: { fetch: (i: Record<string, unknown>) => Promise<unknown> } }).inner.fetch =
+      async (i) => {
+        seen.push(i);
+        return { status: 200, body: '{}', url: 'https://my.atriumhealth.org/' };
+      };
+    await t.fetch({ method: 'POST', path: 'api/allergies/LoadAllergies', body: '{}', retryOnTimeout: true });
+    await t.fetch({ method: 'POST', path: 'api/conversations/SendReply', body: '{}' });
+    expect(seen[0]!.retryOnTimeout).toBe(true);
+    expect('retryOnTimeout' in seen[1]!).toBe(false);
+  });
 });

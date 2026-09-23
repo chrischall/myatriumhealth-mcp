@@ -22,7 +22,7 @@ export function registerRecordTools(
       return viewResponse(
         view,
         await patients.readAs(client, async () => {
-          const raw = await client.api('allergies/LoadAllergies');
+          const raw = await client.api('allergies/LoadAllergies', {}, { retryOnTimeout: true });
           return project(raw, isCompact(view), 'allergies/LoadAllergies', (r: {
               dataList?: { allergyItem?: Record<string, unknown> }[];
             }) =>
@@ -54,7 +54,7 @@ export function registerRecordTools(
       return viewResponse(
         view,
         await patients.readAs(client, async () => {
-          const raw = await client.api('HealthIssues/LoadHealthIssuesData');
+          const raw = await client.api('HealthIssues/LoadHealthIssuesData', {}, { retryOnTimeout: true });
           return project(raw, isCompact(view), 'HealthIssues/LoadHealthIssuesData', (r: {
               dataList?: { healthIssueItem?: Record<string, unknown> }[];
             }) =>
@@ -79,7 +79,7 @@ export function registerRecordTools(
       return viewResponse(
         view,
         await patients.readAs(client, async () => {
-          const raw = await client.api('immunizations/LoadImmunizations');
+          const raw = await client.api('immunizations/LoadImmunizations', {}, { retryOnTimeout: true });
           return project(raw, isCompact(view), 'immunizations/LoadImmunizations', (r: {
               organizationImmunizationList?: {
                 organization?: { OrganizationName?: string };
@@ -113,7 +113,7 @@ export function registerRecordTools(
       return viewResponse(
         view,
         await patients.readAs(client, async () => {
-          const raw = await client.api('medications/LoadMedicationsPage');
+          const raw = await client.api('medications/LoadMedicationsPage', {}, { retryOnTimeout: true });
           return project(raw, isCompact(view), 'medications/LoadMedicationsPage', (r: {
               communityMembers?: {
                 prescriptionList?: { prescriptions?: Record<string, unknown>[] };
@@ -196,7 +196,7 @@ export function registerRecordTools(
       return viewResponse(
         view,
         await patients.readAs(client, async () => {
-          const raw = await client.api('goals/LoadPatientGoals');
+          const raw = await client.api('goals/LoadPatientGoals', {}, { retryOnTimeout: true });
           return project(raw, isCompact(view), 'goals/LoadPatientGoals', (r: {
               patientGoals?: Record<string, unknown>[];
             }) =>

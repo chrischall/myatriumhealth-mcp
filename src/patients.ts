@@ -65,7 +65,7 @@ export function parseProxySubjects(html: string): Patient[] {
 
 /** Ask the portal who it is currently serving. One call, and it cannot be faked. */
 export async function whoAmI(client: MyAtriumHealthClient): Promise<PatientIdentity> {
-  const r = (await client.api('health-summary/FetchHealthSummary')) as {
+  const r = (await client.api('health-summary/FetchHealthSummary', {}, { retryOnTimeout: true })) as {
     patientFirstName?: string;
     header?: { patientAge?: number };
   };

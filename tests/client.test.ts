@@ -220,3 +220,53 @@ describe('JSON string answers', () => {
     await expect(c.api('conversations/GetComposeId')).resolves.toBe('WP-24compose');
   });
 });
+
+// fetchproxy 3.2 no longer re-sends a POST after a transport timeout. Every
+// MyChart read is a POST, so a read must opt back in — and a write never may.
+describe('retryOnTimeout', () => {
+  it('marks an api read as safe to retry after a timeout', async () => {
+    const t = new FakeTransport((i) => (i.path.startsWith('api/') ? ok('{}') : ok(signedInPage())));
+    const c = new MyAtriumHealthClient({ transport: t });
+    await c.api('allergies/LoadAllergies', {}, { retryOnTimeout: true });
+    expect(t.calls.find((x) => x.path.startsWith('api/'))!.retryOnTimeout).toBe(true);
+  });
+
+  it('leaves an api call unmarked by default, so a write is never re-sent', async () => {
+    const t = new FakeTransport((i) => (i.path.startsWith('api/') ? ok('"WP-24compose"') : ok(signedInPage())));
+    const c = new MyAtriumHealthClient({ transport: t });
+    await c.api('conversations/GetComposeId', {});
+    expect(t.calls.find((x) => x.path.startsWith('api/'))!.retryOnTimeout).toBeUndefined();
+  });
+
+  it('marks a legacy read as safe to retry after a timeout', async () => {
+    const t = new FakeTransport((i) => (i.path.includes('VisitsList') ? ok('{}') : ok(signedInPage())));
+    const c = new MyAtriumHealthClient({ transport: t });
+    await c.legacy('Visits/VisitsList/LoadUpcoming', {}, {}, { retryOnTimeout: true });
+    expect(t.calls.find((x) => x.path.includes('VisitsList'))!.retryOnTimeout).toBe(true);
+  });
+
+  it('marks both care-team reads and the conversation reads', async () => {
+    const t = new FakeTransport((i) =>
+      i.path.includes('GetOrganizations') ? ok('{"organizations":{}}') : i.path.startsWith('api/') || i.path.includes('CareTeam') ? ok('{}') : ok(signedInPage()));
+    const c = new MyAtriumHealthClient({ transport: t });
+    await c.careTeam();
+    await c.listConversations(1);
+    await c.conversationDetails('WP-24thread');
+    const posts = t.calls.filter((x) => x.method === 'POST');
+    expect(posts.length).toBeGreaterThan(0);
+    expect(posts.every((x) => x.retryOnTimeout === true)).toBe(true);
+  });
+
+  it('never marks an upload or an upload deletion', async () => {
+    const t = new FakeTransport((i) =>
+      i.path.startsWith('DocumentUpload/UploadFile')
+        ? ok('{"Success":true,"Data":[{"DocumentId":"D","FileDisplayName":"a.png","FileExtension":".png"}]}')
+        : i.path.startsWith('DocumentUpload/') ? ok('{"Success":true}') : ok(signedInPage()));
+    const c = new MyAtriumHealthClient({ transport: t });
+    const doc = await c.uploadDocument({ filename: 'a.png', mimeType: 'image/png', bytes: new Uint8Array(1) });
+    await c.deleteDocument(doc);
+    const writes = t.calls.filter((x) => x.path.startsWith('DocumentUpload/'));
+    expect(writes).toHaveLength(2);
+    expect(writes.every((x) => x.retryOnTimeout === undefined)).toBe(true);
+  });
+});
