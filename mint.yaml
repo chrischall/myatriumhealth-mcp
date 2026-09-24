@@ -35,7 +35,7 @@ env:
     required: false
     help: >-
       true refuses mah_reply_message sends; previews still work. Default false —
-      every send already requires confirm: true.
+      every send already asks the user to confirm first (see MCP_CONFIRM_MODE).
   - name: MAH_WS_PORT
     required: false
     help: >-
