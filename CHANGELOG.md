@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.0...v1.3.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **deps:** bump dotenv from 18.0.1 to 18.0.2 in the production-dependencies group ([#83](https://github.com/chrischall/myatriumhealth-mcp/issues/83)) ([5d2eb17](https://github.com/chrischall/myatriumhealth-mcp/commit/5d2eb17f44c38ddef55d0f04fa78836f89ee93bf))
+* **privacy:** withhold health records when a compact projection no longer matches the portal ([#85](https://github.com/chrischall/myatriumhealth-mcp/issues/85)) ([f2fecc5](https://github.com/chrischall/myatriumhealth-mcp/commit/f2fecc574fdbed0c422831c80db3a11550cba63f))
+
 ## [1.3.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.2.2...v1.3.0) (2026-09-24)
 
 
