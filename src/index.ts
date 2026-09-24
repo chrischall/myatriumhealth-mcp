@@ -11,7 +11,7 @@
 //     signed-in tab. Holds no credentials at all.
 //
 // Every data tool is read-only except mah_reply_message, which sends a message a
-// provider will see. It previews unless called with confirm: true, and
+// provider will see. It asks the user to confirm first (MCP_CONFIRM_MODE), and
 // MAH_READ_ONLY=true refuses it outright. The sign-in tools mutate only the
 // local session.
 
@@ -87,7 +87,7 @@ if (!bridgeless && (username !== undefined || password !== undefined)) {
 }
 
 // Off by default, like every other capability here: the send itself is already
-// behind confirm: true. This is the switch for an install that must never send.
+// behind a confirmation. This is the switch for an install that must never send.
 const readOnly = parseBoolEnv('MAH_READ_ONLY', { default: false });
 
 const port = readPortEnv('MAH_WS_PORT', DEFAULT_PORT);

@@ -112,6 +112,9 @@ call prints a pair code — approve it once in the Transporter popup.
 | `MAH_DEVICE_FILE` | `~/.myatriumhealth-mcp/device.json` | Session state (0600). Holds the **live cookie jar** as well as the device token — treat as a credential. |
 | `MAH_WS_PORT` | `37149` | fetchproxy concentrator port (bridge mode only). The whole fleet shares this one port; override only when hosting. |
 | `MAH_READ_ONLY` | `false` | `true` refuses `mah_reply_message` sends (previews still work). The tool stays listed either way. |
+| `MCP_CONFIRM_MODE` | `ask-user` | What a reply does on a client that cannot show a confirmation prompt (claude.ai, Claude Desktop). `ask-user`: two steps — the first call sends nothing and returns a preview plus a token, and the model must get your approval in chat before calling again with it. `auto`: the same two steps, but the model may use the token after reviewing the preview itself. `refuse`: replies are refused on such clients. A client that can show prompts (Claude Code) always gets the real prompt. An unrecognised value is treated as `refuse`. |
+| `MCP_CONFIRM_TTL_SECONDS` | `600` | How long a token stays valid. |
+| `MCP_CONFIRM_SECRET` | random per process | Signing key; set it only if tokens must survive a server restart. |
 
 ## Tools
 
@@ -135,7 +138,7 @@ stated rather than inferred.
 | `mah_get_health_summary` | Health-summary header and action plans |
 | `mah_list_message_folders` | Message Center folders with unread counts |
 | `mah_list_messages` | Message Center conversations for a folder, each with the `conversationId` to reply to |
-| `mah_reply_message` | Reply to a conversation as the active patient — previews unless `confirm: true` with the preview's `confirmationToken` *(irreversible)* |
+| `mah_reply_message` | Reply to a conversation as the active patient — asks you to confirm first: a prompt where the client supports one, otherwise a preview and a `confirmToken` *(irreversible)* |
 | `mah_list_insurance` | Insurance coverages on file |
 | `mah_list_care_team` | Care team providers, internal and external |
 | `mah_list_billing_accounts` | Billing accounts and balances (parsed from HTML) |
@@ -194,14 +197,22 @@ local organization returns HTTP 500. The client assembles this from
 `mah_reply_message` takes a `conversationId` from `mah_list_messages`, a plain-text
 `body`, and optionally `attachments`. It replies **as whichever patient is active**.
 
-- **It previews by default.** Without `confirm: true` it returns the thread, recipients
-  and body and sends nothing. The send itself is irreversible and provider-visible.
-- **A send must follow its own preview.** The preview returns a `confirmationToken`
-  bound to the patient, thread, body and attachments it showed; `confirm: true` is
-  refused without it, with one for anything else, after 10 minutes, or once it has been
-  used for a send — each preview authorizes one send, so a retry after an uncertain send
-  needs a fresh preview. So message text the model has read cannot talk it into a
-  one-call send the user never saw.
+- **It asks before it sends.** A client that can show a confirmation prompt (Claude
+  Code) gets one with the thread, recipients, body and attachments. Elsewhere the first
+  call sends nothing and returns that preview plus a `confirmToken`; only a repeat call
+  with the same arguments and that token sends. `MCP_CONFIRM_MODE` (above) decides
+  whether the model must get your approval in chat before using it (`ask-user`, the
+  default), may use it itself (`auto`), or is refused (`refuse`). The send itself is
+  irreversible and provider-visible.
+- **A send must follow its own preview.** The token is bound to the patient, thread,
+  recipients, body and attachments the preview showed (the fleet's shared mechanism from
+  `@chrischall/mcp-utils`). Anything else is refused: a different reply or thread
+  (`DRAFT_CHANGED`, with the new preview and a fresh token), after 10 minutes
+  (`TOKEN_EXPIRED`), a token already used (`TOKEN_REUSED`) or not issued for this reply
+  (`TOKEN_INVALID`). Each preview authorizes one send, and the token is spent once the send
+  is authorized, so any retry, even after a failure before anything went out, needs a
+  fresh preview. So message text the model has read cannot talk it into a one-call send
+  the user never saw.
 - **`MAH_READ_ONLY=true` refuses every send.** The tool stays registered — a hosted
   connector publishes the tool list of a child with no env of its own, so a tool that
   registered only when writes were allowed would disappear for everyone.

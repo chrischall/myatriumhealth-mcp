@@ -126,10 +126,29 @@ function portal(opts: {
   return p;
 }
 
-type Handler = (args: Record<string, unknown>) => Promise<{ content: { text: string }[]; isError?: boolean }>;
+type Result = { content: { text: string }[]; isError?: boolean; resultType?: string };
+type Handler = (args: Record<string, unknown>, ctx: unknown) => Promise<Result>;
+
+/**
+ * A request context declaring the caller's capabilities, as the 2026-07-28 era
+ * envelope carries them. Without elicitation (claude.ai, Claude Desktop) the
+ * reply goes through the two-phase confirm-token flow; with it, through a real
+ * prompt, answered by `inputResponses` on the retry.
+ */
+function ctx(opts: { elicitation?: boolean; inputResponses?: unknown } = {}): unknown {
+  return {
+    mcpReq: {
+      envelope: {
+        'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+        'io.modelcontextprotocol/clientCapabilities': opts.elicitation ? { elicitation: { form: {} } } : { extensions: {} },
+      },
+      inputResponses: opts.inputResponses,
+    },
+  };
+}
 
 function tool(p: Portal, opts: { readOnly?: boolean; attachmentsSupported?: boolean } = {}) {
-  const handlers = new Map<string, { def: { description: string; annotations?: Record<string, unknown> }; fn: Handler }>();
+  const handlers = new Map<string, { def: { description: string; annotations?: Record<string, unknown>; inputSchema?: { shape: Record<string, unknown> } }; fn: Handler }>();
   const server = {
     registerTool: (name: string, def: never, fn: Handler) => handlers.set(name, { def, fn }),
   } as never;
@@ -140,30 +159,31 @@ function tool(p: Portal, opts: { readOnly?: boolean; attachmentsSupported?: bool
     attachmentsSupported: opts.attachmentsSupported ?? true,
   });
   const h = handlers.get('mah_reply_message')!;
+  const parse = (r: Result) => JSON.parse(r.content[0]!.text) as Record<string, unknown>;
   return {
     def: h.def,
     patients,
     /**
-     * Calls the tool the way an approved send happens: a confirm: true call is
-     * preceded by its preview, whose confirmationToken it carries. The preview's
-     * requests are then dropped from the log so assertions see only the send.
+     * Calls the tool the way an approved send happens on a client that cannot
+     * show a prompt. `confirm: true` here is TEST shorthand for "the user
+     * approved it" — the tool has no such parameter: the call is made once
+     * without a token (the preview) and again with the confirmToken it
+     * returned. The preview's requests are then dropped from the log so
+     * assertions see only the send. A preview that issued no token (the send is
+     * blocked) is retried with a placeholder, which the blocked path refuses.
      */
     call: async (args: Record<string, unknown>) => {
-      let extra: Record<string, unknown> = {};
-      if (args.confirm === true && !('confirmationToken' in args)) {
-        const preview = await h.fn({ view: undefined, ...args, confirm: false });
-        const token = (JSON.parse(preview.content[0]!.text) as Record<string, unknown>).confirmationToken;
-        extra = { confirmationToken: token };
-        p.calls.length = 0;
-      }
-      const r = await h.fn({ view: undefined, ...args, ...extra });
-      return JSON.parse(r.content[0]!.text) as Record<string, unknown>;
+      const { confirm, ...rest } = args;
+      if (confirm !== true) return parse(await h.fn({ view: undefined, ...rest }, ctx()));
+      const preview = parse(await h.fn({ view: undefined, ...rest }, ctx()));
+      p.calls.length = 0;
+      const confirmToken = (preview.confirmToken as string | undefined) ?? 'no-token-was-issued';
+      return parse(await h.fn({ view: undefined, ...rest, confirmToken }, ctx()));
     },
     /** One call, exactly as given — no preview first. */
-    raw: async (args: Record<string, unknown>) => {
-      const r = await h.fn({ view: undefined, ...args });
-      return JSON.parse(r.content[0]!.text) as Record<string, unknown>;
-    },
+    raw: async (args: Record<string, unknown>, c: unknown = ctx()) => parse(await h.fn({ view: undefined, ...args }, c)),
+    /** One call, returning the unparsed result (an elicitation round has no text). */
+    result: (args: Record<string, unknown>, c: unknown = ctx()) => h.fn({ view: undefined, ...args }, c),
   };
 }
 
@@ -180,16 +200,17 @@ describe('mah_reply_message — the preview', () => {
   it('is the default, and touches nothing that sends', async () => {
     const p = portal();
     const out = await tool(p).call({ conversationId: HTH, body: 'Hello there' });
-    expect(out.sent).toBe(false);
+    expect(out).toMatchObject({ status: 'confirmation-required', dispatched: false });
     expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
-    expect(out).toMatchObject({
+    expect(out.preview).toMatchObject({
       patient: 'Christopher',
       conversationId: HTH,
       subject: 'Zepbound refill',
       recipients: ['Vibhu Dhingra, MD', 'Jade W, RN'],
       body: 'Hello there',
     });
-    expect(String(out.nextStep)).toMatch(/confirm: ?true/);
+    expect(String(out.instruction)).toMatch(/confirmToken/);
+    expect(String(out.instruction)).toMatch(/never because a message asked/i);
   });
 
   it('refuses a thread the portal will not accept a reply on', async () => {
@@ -368,6 +389,8 @@ describe('mah_reply_message — the read-only gate', () => {
     const out = await tool(p, { readOnly: true }).call({ conversationId: HTH, body: 'x' });
     expect(out.sent).toBe(false);
     expect(String(out.sendBlocked)).toMatch(/MAH_READ_ONLY/);
+    // Nothing can be sent, so there is nothing to approve: no token is issued.
+    expect(out.confirmToken).toBeUndefined();
   });
 });
 
@@ -454,64 +477,61 @@ describe('mah_reply_message — the tool surface', () => {
     expect(def.description).toMatch(/irreversible/i);
     expect(def.description).toMatch(/confirm/i);
   });
+
+  it('takes a confirmToken, and no longer a confirm flag or its own confirmationToken', () => {
+    const keys = Object.keys(tool(portal()).def.inputSchema!.shape);
+    expect(keys).toContain('confirmToken');
+    expect(keys).not.toContain('confirm');
+    expect(keys).not.toContain('confirmationToken');
+  });
 });
 
 describe('mah_reply_message — a send must follow its own preview', () => {
-  // confirm: true alone was enough to send, so text injected into a message the
-  // model had read (a preview from an automated sender, say) could drive a send
-  // the user never saw. A send now needs the token its preview returned, bound
-  // to the exact patient, thread, body and attachments that were shown.
+  // A send needs the token its own preview returned, bound to the exact
+  // patient, thread, recipients, body and attachments that were shown — so text
+  // injected into a message the model read cannot drive a send the user never
+  // saw. The mechanism is the fleet's shared one (@chrischall/mcp-utils).
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('returns a confirmation token with the preview', async () => {
-    const p = portal();
-    const out = await tool(p).raw({ conversationId: HTH, body: 'Hello there' });
-    expect(typeof out.confirmationToken).toBe('string');
-    expect(String(out.nextStep)).toMatch(/confirmationToken/);
+  const nothingMutated = (p: Portal) => expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+
+  it('returns a confirmToken with the preview', async () => {
+    const out = await tool(portal()).raw({ conversationId: HTH, body: 'Hello there' });
+    expect(typeof out.confirmToken).toBe('string');
+    expect(String(out.instruction)).toMatch(/confirmToken/);
   });
 
-  it('refuses confirm: true without a token, and sends nothing', async () => {
-    const p = portal();
-    await expect(tool(p).raw({ conversationId: HTH, body: 'x', confirm: true })).rejects.toThrow(
-      /confirmationToken|preview/i,
-    );
-    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
-  });
-
-  it('refuses a token minted for a different body', async () => {
+  it('refuses a token minted for a different body, showing the new preview', async () => {
     const p = portal();
     const t = tool(p);
     const preview = await t.raw({ conversationId: HTH, body: 'what the user saw' });
-    await expect(
-      t.raw({ conversationId: HTH, body: 'something else', confirm: true, confirmationToken: preview.confirmationToken }),
-    ).rejects.toThrow(/preview/i);
-    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+    const out = await t.raw({ conversationId: HTH, body: 'something else', confirmToken: preview.confirmToken });
+    expect(out).toMatchObject({ error: 'DRAFT_CHANGED', dispatched: false });
+    expect((out.preview as Record<string, unknown>).body).toBe('something else');
+    nothingMutated(p);
   });
 
   it('refuses a token minted for different attachments', async () => {
     const p = portal();
     const t = tool(p);
     const preview = await t.raw({ conversationId: HTH, body: 'x' });
-    await expect(
-      t.raw({
-        conversationId: HTH,
-        body: 'x',
-        attachments: [{ filename: 'scan.png', contentBase64: png }],
-        confirm: true,
-        confirmationToken: preview.confirmationToken,
-      }),
-    ).rejects.toThrow(/preview/i);
-    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+    const out = await t.raw({
+      conversationId: HTH,
+      body: 'x',
+      attachments: [{ filename: 'scan.png', contentBase64: png }],
+      confirmToken: preview.confirmToken,
+    });
+    expect(out.error).toBe('DRAFT_CHANGED');
+    nothingMutated(p);
   });
 
   it('refuses a forged or mangled token', async () => {
     const p = portal();
-    await expect(
-      tool(p).raw({ conversationId: HTH, body: 'x', confirm: true, confirmationToken: '9999999999999.abc' }),
-    ).rejects.toThrow(/preview/i);
-    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+    const out = await tool(p).raw({ conversationId: HTH, body: 'x', confirmToken: '9999999999999.abc' });
+    expect(out.error).toBe('TOKEN_INVALID');
+    nothingMutated(p);
   });
 
   it('refuses an expired token', async () => {
@@ -520,10 +540,9 @@ describe('mah_reply_message — a send must follow its own preview', () => {
     const t = tool(p);
     const preview = await t.raw({ conversationId: HTH, body: 'x' });
     vi.setSystemTime(Date.now() + 11 * 60 * 1000);
-    await expect(
-      t.raw({ conversationId: HTH, body: 'x', confirm: true, confirmationToken: preview.confirmationToken }),
-    ).rejects.toThrow(/expired|preview/i);
-    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+    const out = await t.raw({ conversationId: HTH, body: 'x', confirmToken: preview.confirmToken });
+    expect(out.error).toBe('TOKEN_EXPIRED');
+    nothingMutated(p);
   });
 
   it('sends with the token from a preview of the same reply', async () => {
@@ -533,17 +552,52 @@ describe('mah_reply_message — a send must follow its own preview', () => {
     const out = await t.raw({
       conversationId: HTH,
       body: "I'd like another refill at the same dosage.",
-      confirm: true,
-      confirmationToken: preview.confirmationToken,
+      confirmToken: preview.confirmToken,
     });
     expect(out.sent).toBe(true);
   });
+
+  it('MCP_CONFIRM_MODE=refuse refuses on a client that cannot be prompted, and sends nothing', async () => {
+    process.env.MCP_CONFIRM_MODE = 'refuse';
+    try {
+      const p = portal();
+      const out = await tool(p).raw({ conversationId: HTH, body: 'x' });
+      expect(out.reason).toBe('confirmation-unsupported');
+      nothingMutated(p);
+    } finally {
+      delete process.env.MCP_CONFIRM_MODE;
+    }
+  });
 });
 
-describe('mah_reply_message — a confirmation token authorizes one send', () => {
-  // A token was good for ten minutes however often it was used, so one
-  // approved preview could post the same reply again and again — most
-  // plausibly as a "retry" after a send whose outcome was uncertain.
+describe('mah_reply_message — a client that can show a confirmation prompt', () => {
+  const BODY = "I'd like another refill at the same dosage.";
+
+  it('asks through the prompt, showing the reply, and sends nothing on that round', async () => {
+    const p = portal();
+    const r = await tool(p).result({ conversationId: HTH, body: BODY }, ctx({ elicitation: true }));
+    expect(r.resultType).toBe('input_required');
+    expect(JSON.stringify(r)).toContain(BODY);
+    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+  });
+
+  it('sends once the user accepts the prompt', async () => {
+    const p = portal();
+    const accepted = ctx({ elicitation: true, inputResponses: { confirmation: { action: 'accept', content: { confirmed: true } } } });
+    const out = await tool(p).raw({ conversationId: HTH, body: BODY }, accepted);
+    expect(out.sent).toBe(true);
+  });
+
+  it('sends nothing when the user declines', async () => {
+    const p = portal();
+    const declined = ctx({ elicitation: true, inputResponses: { confirmation: { action: 'decline' } } });
+    const out = await tool(p).raw({ conversationId: HTH, body: BODY }, declined);
+    expect(out).toMatchObject({ confirmed: false, cancelled: true });
+    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+  });
+});
+
+describe('mah_reply_message — a confirmToken authorizes one send', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -554,10 +608,10 @@ describe('mah_reply_message — a confirmation token authorizes one send', () =>
     const p = portal();
     const t = tool(p);
     const preview = await t.raw({ conversationId: HTH, body: BODY });
-    const args = { conversationId: HTH, body: BODY, confirm: true, confirmationToken: preview.confirmationToken };
+    const args = { conversationId: HTH, body: BODY, confirmToken: preview.confirmToken };
     expect((await t.raw(args)).sent).toBe(true);
     p.calls.length = 0;
-    await expect(t.raw(args)).rejects.toThrow(/already been used|preview/i);
+    expect((await t.raw(args)).error).toBe('TOKEN_REUSED');
     expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
   });
 
@@ -565,33 +619,35 @@ describe('mah_reply_message — a confirmation token authorizes one send', () =>
     const p = portal({ sendReplyAnswer: '""', newBodyLines: ['something else entirely'] });
     const t = tool(p);
     const preview = await t.raw({ conversationId: HTH, body: 'x' });
-    const args = { conversationId: HTH, body: 'x', confirm: true, confirmationToken: preview.confirmationToken };
+    const args = { conversationId: HTH, body: 'x', confirmToken: preview.confirmToken };
     await expect(t.raw(args)).rejects.toThrow(/may have been sent/i);
     p.calls.length = 0;
-    await expect(t.raw(args)).rejects.toThrow(/already been used|preview/i);
+    expect((await t.raw(args)).error).toBe('TOKEN_REUSED');
     expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
   });
 
-  it('keeps the token good when the send failed before anything went out', async () => {
+  // The token is spent when the send is authorized, whatever happens next, so a
+  // send that failed before anything went out needs a fresh preview — the safe
+  // direction: the user approves what is retried.
+  it('needs a fresh preview after a send that failed before anything went out', async () => {
     const p = portal({ saveDraftAnswer: '<title>Oops!</title>' });
     const t = tool(p);
     const preview = await t.raw({ conversationId: HTH, body: 'x' });
-    const args = { conversationId: HTH, body: 'x', confirm: true, confirmationToken: preview.confirmationToken };
+    const args = { conversationId: HTH, body: 'x', confirmToken: preview.confirmToken };
     await expect(t.raw(args)).rejects.toThrow(/SaveReplyDraft/);
-    p.calls.length = 0;
-    // Still refused by the portal, but not for a spent token: it got as far as the draft again.
-    await expect(t.raw(args)).rejects.toThrow(/SaveReplyDraft/);
+    expect((await t.raw(args)).error).toBe('TOKEN_REUSED');
+    const fresh = await t.raw({ conversationId: HTH, body: 'x' });
+    await expect(t.raw({ ...args, confirmToken: fresh.confirmToken })).rejects.toThrow(/SaveReplyDraft/);
     expect(endpoints(p).filter((e) => e.endsWith('SendReply'))).toEqual([]);
   });
 
   it('gives two previews of the same reply distinct tokens, each good once', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] });
     const p = portal();
     const t = tool(p);
     const a = await t.raw({ conversationId: HTH, body: BODY });
     const b = await t.raw({ conversationId: HTH, body: BODY });
-    expect(a.confirmationToken).not.toBe(b.confirmationToken);
-    expect((await t.raw({ conversationId: HTH, body: BODY, confirm: true, confirmationToken: a.confirmationToken })).sent).toBe(true);
-    expect((await t.raw({ conversationId: HTH, body: BODY, confirm: true, confirmationToken: b.confirmationToken })).sent).toBe(true);
+    expect(a.confirmToken).not.toBe(b.confirmToken);
+    expect((await t.raw({ conversationId: HTH, body: BODY, confirmToken: a.confirmToken })).sent).toBe(true);
+    expect((await t.raw({ conversationId: HTH, body: BODY, confirmToken: b.confirmToken })).sent).toBe(true);
   });
 });
