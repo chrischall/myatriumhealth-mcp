@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.3.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.2.2...v1.3.0) (2026-09-24)
+
+
+### Features
+
+* **reply:** confirm replies with a prompt where the client supports one ([#79](https://github.com/chrischall/myatriumhealth-mcp/issues/79)) ([ecc5407](https://github.com/chrischall/myatriumhealth-mcp/commit/ecc5407fd68370fb8763a42556197f5fc694c001))
+
+
+### Bug Fixes
+
+* **deps:** bump dotenv from 17.4.2 to 18.0.1 ([#77](https://github.com/chrischall/myatriumhealth-mcp/issues/77)) ([720d560](https://github.com/chrischall/myatriumhealth-mcp/commit/720d5602d6d805afd547ab4b6c055195121a79ab))
+
+
+### Documentation
+
+* describe MAH_READ_ONLY against the new confirmation, not confirm: true ([#81](https://github.com/chrischall/myatriumhealth-mcp/issues/81)) ([a9a54dd](https://github.com/chrischall/myatriumhealth-mcp/commit/a9a54dd4801656068c39ae77c3b665e132ab9fb9))
+
 ## [1.2.2](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.2.1...v1.2.2) (2026-09-23)
 
 
