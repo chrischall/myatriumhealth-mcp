@@ -167,7 +167,9 @@ Every other reader gets the URL strip only. That field list is applied where one
 actually established and nowhere else — the list above is generated from
 `PROJECTED_ENDPOINTS` and checked against the `project()` call sites by a test, so it
 cannot quietly drift out of step with the code. If the portal's shape drifts, the
-projection warns to stderr and returns the raw response rather than an empty list.
+projection warns to stderr and returns `{ projectionFailed: true, endpoint, topLevelKeys,
+note }` rather than an empty list — key names only, never the raw health record; ask for
+`view: 'full'` to see the portal's payload.
 
 ## Sessions expire, and they do it quietly
 
