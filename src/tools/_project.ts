@@ -4,9 +4,39 @@
  * These envelopes are large (test results 33 KB, medications 30 KB) and mostly
  * UI plumbing. `compact` projects each record to the clinically meaningful
  * fields. Undocumented APIs drift, so when the expected shape is absent we
- * WARN to stderr and return the RAW response rather than an empty projection —
- * degrade, never break.
+ * WARN to stderr and return a flagged {@link ProjectionFailure} rather than an
+ * empty projection — degrade, never break. It deliberately does NOT fall back
+ * to the raw response: that would dump every field of a health record into the
+ * transcript on the rung whose whole job is to keep them out, silently and for
+ * every tool at once. The caller gets the key names (no values) and is told to
+ * ask for `view: 'full'` explicitly if it needs the payload.
  */
+import { PROJECTED_ENDPOINTS } from '../view.js';
+
+/** What compact returns when the portal's shape no longer matches the projection. */
+export interface ProjectionFailure {
+  projectionFailed: true;
+  endpoint: string;
+  /** Top-level key names only, never values, so drift is diagnosable. */
+  topLevelKeys?: string[];
+  note: string;
+}
+
+function projectionFailure(raw: unknown, endpoint: string): ProjectionFailure {
+  const tool = (PROJECTED_ENDPOINTS as Record<string, string>)[endpoint];
+  const again = tool ? `call ${tool} again with view: 'full'` : "call again with view: 'full'";
+  const out: ProjectionFailure = {
+    projectionFailed: true,
+    endpoint,
+    note:
+      'The portal response no longer matches the expected shape, so the compact projection ' +
+      `could not be applied and the record was withheld. To see the portal's payload, ${again}.`,
+  };
+  if (raw !== null && typeof raw === 'object' && !Array.isArray(raw)) {
+    out.topLevelKeys = Object.keys(raw);
+  }
+  return out;
+}
 /**
  * Whether a paged endpoint returned everything. A bare array reads as the
  * whole history, so a reader whose endpoint pages says so alongside it.
@@ -34,10 +64,10 @@ export function project<T>(
   }
   if (out === undefined) {
     console.error(
-      `[myatriumhealth-mcp] ${endpoint}: expected shape missing — returning the raw response. ` +
-        'The portal may have changed; see docs/MYATRIUMHEALTH-API.md.',
+      `[myatriumhealth-mcp] ${endpoint}: expected shape missing — withholding the record; ` +
+        "view: 'full' returns it raw. The portal may have changed; see docs/MYATRIUMHEALTH-API.md.",
     );
-    return raw;
+    return projectionFailure(raw, endpoint);
   }
   if (completeness === undefined) return out;
   // Returned as { items, complete, note } rather than a bare array: the flags
