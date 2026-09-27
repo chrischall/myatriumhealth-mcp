@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.2](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.1...v1.3.2) (2026-09-27)
+
+
+### Bug Fixes
+
+* **deps:** move to [@fetchproxy](https://github.com/fetchproxy) 3.4 for ContextMint Bridge errors, capability subsets and managed pins ([#86](https://github.com/chrischall/myatriumhealth-mcp/issues/86)) ([81ce034](https://github.com/chrischall/myatriumhealth-mcp/commit/81ce03474e77979ffd4a9d7297e2174416e6a1b7))
+* **deps:** move to @chrischall/mcp-utils 2.8 and [@fetchproxy](https://github.com/fetchproxy) 3.4.1 for clearer browser-bridge errors ([#88](https://github.com/chrischall/myatriumhealth-mcp/issues/88)) ([7ba99bb](https://github.com/chrischall/myatriumhealth-mcp/commit/7ba99bb7008f3a90ae29178a915fb8fe74e6edbd))
+
 ## [1.3.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.0...v1.3.1) (2026-09-24)
 
 
