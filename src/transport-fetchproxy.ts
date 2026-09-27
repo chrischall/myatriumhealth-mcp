@@ -15,8 +15,8 @@ import { McpToolError } from '@chrischall/mcp-utils';
 import type { FetchInit, FetchResult, MahTransport } from './transport.js';
 
 /**
- * The whole fetchproxy fleet shares this concentrator port — the Transporter
- * extension dials this one port and servers host/peer-elect on it. Picking a
+ * The whole fetchproxy fleet shares this concentrator port — the ContextMint
+ * Bridge extension dials this one port and servers host/peer-elect on it. Picking a
  * "unique" port means the extension never connects.
  */
 export const DEFAULT_PORT = 37_149;

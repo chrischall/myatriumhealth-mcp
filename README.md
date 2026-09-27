@@ -80,8 +80,8 @@ unless you specifically need bridge-less.
 Every MyChart cookie is `HttpOnly` and login is MFA-gated, so the session cannot be
 copied out of the browser and replayed from Node. Requests are therefore relayed
 through the user's own signed-in tab via the
-[fetchproxy](https://github.com/chrischall/fetchproxy) bridge and the Transporter
-extension, reusing their authenticated session. **The server never reads or stores the
+[fetchproxy](https://github.com/chrischall/fetchproxy) bridge and the ContextMint Bridge
+browser extension, reusing their authenticated session. **The server never reads or stores the
 session cookie.**
 
 The portal's web app talks to a JSON API in two generations — modern
@@ -102,8 +102,13 @@ Both are documented, with live-captured shapes, in
 }
 ```
 
-Then sign in to `my.atriumhealth.org` in Chrome and call `mah_healthcheck`. The first
-call prints a pair code — approve it once in the Transporter popup.
+Bridge mode needs **ContextMint Bridge**, installed from its
+[releases page](https://github.com/nullnet-app/contextmint-bridge/releases) — in Chrome,
+unzip the `chrome` zip and add it via `chrome://extensions` → Developer mode → Load
+unpacked; in Safari it ships inside the ContextMint app.
+
+Then sign in to `my.atriumhealth.org` in your browser and call `mah_healthcheck`. The
+first call prints a pair code — approve it once in the ContextMint Bridge popup.
 
 | Env | Default | Purpose |
 |---|---|---|
