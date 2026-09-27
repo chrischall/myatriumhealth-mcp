@@ -27,7 +27,9 @@ account.
 
 ContextMint Bridge comes from
 https://github.com/nullnet-app/contextmint-bridge/releases (Chrome: load the `chrome`
-zip unpacked; Safari: it ships inside the ContextMint app).
+zip unpacked; use Chrome for now — Safari will ship inside the ContextMint app, which
+has no public download yet). It is the fetchproxy extension renamed, same maintainer;
+source is public there — build it, or verify a zip with `shasum -a 256 -c <zip>.sha256`.
 
 Create the profile with its **full scope declared up front** — widening scope later
 invalidates the grant and forces a re-pair:
