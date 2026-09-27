@@ -11,10 +11,10 @@
   "repository": "https://github.com/chrischall/myatriumhealth-mcp",
   "license": "MIT",
   "keywords": [
-    "angi",
-    "home-services",
-    "contractors",
-    "reviews",
+    "mychart",
+    "epic",
+    "atrium-health",
+    "health-records",
     "mcp"
   ],
   "skills": "./skills/",

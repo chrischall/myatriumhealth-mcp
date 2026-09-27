@@ -105,7 +105,15 @@ Both are documented, with live-captured shapes, in
 Bridge mode needs **ContextMint Bridge**, installed from its
 [releases page](https://github.com/nullnet-app/contextmint-bridge/releases) — in Chrome,
 unzip the `chrome` zip and add it via `chrome://extensions` → Developer mode → Load
-unpacked; in Safari it ships inside the ContextMint app.
+unpacked. Use Chrome for now: the Safari build will ship inside the ContextMint app,
+which has no public download yet.
+
+ContextMint Bridge is the fetchproxy browser extension under its new name, from the
+same maintainer — fetchproxy's own [README](https://github.com/chrischall/fetchproxy#extension)
+points to it. Its source is public at
+[nullnet-app/contextmint-bridge](https://github.com/nullnet-app/contextmint-bridge): build it
+yourself, or check a release zip against the `.sha256` file published beside it
+(`shasum -a 256 -c contextmint-bridge-chrome-<version>.zip.sha256`).
 
 Then sign in to `my.atriumhealth.org` in your browser and call `mah_healthcheck`. The
 first call prints a pair code — approve it once in the ContextMint Bridge popup.
