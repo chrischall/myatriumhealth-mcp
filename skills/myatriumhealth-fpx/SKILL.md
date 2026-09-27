@@ -23,7 +23,11 @@ account.
 
 ## One-time setup
 
-    npm i -g @fetchproxy/cli          # also needs the Transporter Chrome extension
+    npm i -g @fetchproxy/cli          # also needs the ContextMint Bridge extension
+
+ContextMint Bridge comes from
+https://github.com/nullnet-app/contextmint-bridge/releases (Chrome: load the `chrome`
+zip unpacked; Safari: it ships inside the ContextMint app).
 
 Create the profile with its **full scope declared up front** — widening scope later
 invalidates the grant and forces a re-pair:
@@ -36,7 +40,7 @@ invalidates the grant and forces a re-pair:
       --capture-header 'cookie@my.atriumhealth.org'
 
 Then sign in to MyAtriumHealth in Chrome and run any command below. The first one
-prints a pair code — approve it in the Transporter popup. The trust persists.
+prints a pair code — approve it in the ContextMint Bridge popup. The trust persists.
 
 ## Use it
 
