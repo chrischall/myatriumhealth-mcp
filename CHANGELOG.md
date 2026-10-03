@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.3](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.2...v1.3.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* **auth:** report a CDN/WAF block on sign-in as edge_blocked, not a signed-in session ([#97](https://github.com/chrischall/myatriumhealth-mcp/issues/97)) ([69fdac7](https://github.com/chrischall/myatriumhealth-mcp/commit/69fdac780a7e3ddf3d58ea3bb88fc3835c934169))
+* **deps:** bump @chrischall/mcp-utils to 2.12.0 ([#96](https://github.com/chrischall/myatriumhealth-mcp/issues/96)) ([6a03826](https://github.com/chrischall/myatriumhealth-mcp/commit/6a038264cdb96e50a6c48a021f11fe703483dd61))
+* **deps:** bump @chrischall/mcp-utils to 2.13.0 ([#98](https://github.com/chrischall/myatriumhealth-mcp/issues/98)) ([0fdceb8](https://github.com/chrischall/myatriumhealth-mcp/commit/0fdceb89324e27de3878a3804869ba522f213fdc))
+* **deps:** bump dotenv from 18.0.2 to 18.0.4 in the production-dependencies group ([#91](https://github.com/chrischall/myatriumhealth-mcp/issues/91)) ([060035e](https://github.com/chrischall/myatriumhealth-mcp/commit/060035ea966aaec119a9cfb25c7bcf634c503705))
+* keep credentials and report edge_blocked on CDN/WAF blocks (mcp-utils 2.10.0) ([#94](https://github.com/chrischall/myatriumhealth-mcp/issues/94)) ([a964cd7](https://github.com/chrischall/myatriumhealth-mcp/commit/a964cd7f300f543102147fc17642906f7b24c17c))
+* keep write approvals valid across a hosted restart (mcp-utils 2.11.0) ([#95](https://github.com/chrischall/myatriumhealth-mcp/issues/95)) ([6746671](https://github.com/chrischall/myatriumhealth-mcp/commit/67466712383b8ed0d0d8f848c7187424af29996d))
+* report CDN/WAF blocks as edge_blocked, not a rejected credential (mcp-utils 2.9.0) ([#93](https://github.com/chrischall/myatriumhealth-mcp/issues/93)) ([4a3e4fd](https://github.com/chrischall/myatriumhealth-mcp/commit/4a3e4fd558b074eae81de19721189d16fcad13b2))
+
 ## [1.3.2](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.1...v1.3.2) (2026-09-27)
 
 
