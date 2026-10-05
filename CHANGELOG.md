@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.4](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.3...v1.3.4) (2026-10-05)
+
+
+### Bug Fixes
+
+* **deps:** require @chrischall/mcp-utils 2.14.0 and MCP SDK 2.3.0 ([#99](https://github.com/chrischall/myatriumhealth-mcp/issues/99)) ([64707ac](https://github.com/chrischall/myatriumhealth-mcp/commit/64707ace02b70107a3da16ee08d681769a488eae))
+
 ## [1.3.3](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.2...v1.3.3) (2026-10-03)
 
 
