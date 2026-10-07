@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.5](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.4...v1.3.5) (2026-10-07)
+
+
+### Bug Fixes
+
+* **deps:** retry while the browser bridge awaits approval and honour MCP_CONFIRM_ELICITATION=off ([#101](https://github.com/chrischall/myatriumhealth-mcp/issues/101)) ([e98e67f](https://github.com/chrischall/myatriumhealth-mcp/commit/e98e67feaf245843c8543a34754e4f462cb3db81))
+
+
+### Documentation
+
+* document MCP_CONFIRM_ELICITATION ([#103](https://github.com/chrischall/myatriumhealth-mcp/issues/103)) ([8cf68a9](https://github.com/chrischall/myatriumhealth-mcp/commit/8cf68a9800afc6fd38abacecb393e0b3bc05d02c))
+
 ## [1.3.4](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.3...v1.3.4) (2026-10-05)
 
 
