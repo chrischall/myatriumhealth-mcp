@@ -125,7 +125,8 @@ first call prints a pair code — approve it once in the ContextMint Bridge popu
 | `MAH_DEVICE_FILE` | `~/.myatriumhealth-mcp/device.json` | Session state (0600). Holds the **live cookie jar** as well as the device token — treat as a credential. |
 | `MAH_WS_PORT` | `37149` | fetchproxy concentrator port (bridge mode only). The whole fleet shares this one port; override only when hosting. |
 | `MAH_READ_ONLY` | `false` | `true` refuses `mah_reply_message` sends (previews still work). The tool stays listed either way. |
-| `MCP_CONFIRM_MODE` | `ask-user` | What a reply does on a client that cannot show a confirmation prompt (claude.ai, Claude Desktop). `ask-user`: two steps — the first call sends nothing and returns a preview plus a token, and the model must get your approval in chat before calling again with it. `auto`: the same two steps, but the model may use the token after reviewing the preview itself. `refuse`: replies are refused on such clients. A client that can show prompts (Claude Code) always gets the real prompt. An unrecognised value is treated as `refuse`. |
+| `MCP_CONFIRM_MODE` | `ask-user` | What a reply does on a client that cannot show a confirmation prompt (claude.ai, Claude Desktop). `ask-user`: two steps — the first call sends nothing and returns a preview plus a token, and the model must get your approval in chat before calling again with it. `auto`: the same two steps, but the model may use the token after reviewing the preview itself. `refuse`: replies are refused on such clients. A client that can show prompts (Claude Code) always gets the real prompt, unless `MCP_CONFIRM_ELICITATION=off`. An unrecognised value is treated as `refuse`. |
+| `MCP_CONFIRM_ELICITATION` | `on` | `off` never shows a confirmation prompt, so every client gets the `MCP_CONFIRM_MODE` path. Set it for a client that claims to support prompts but never shows one (the reply hangs — opencode 2.0.x). Any other value stays `on`, with a warning on stderr. |
 | `MCP_CONFIRM_TTL_SECONDS` | `600` | How long a token stays valid. |
 | `MCP_CONFIRM_SECRET` | random per process | Signing key; set it only if tokens must survive a server restart. |
 
@@ -213,7 +214,8 @@ local organization returns HTTP 500. The client assembles this from
 `body`, and optionally `attachments`. It replies **as whichever patient is active**.
 
 - **It asks before it sends.** A client that can show a confirmation prompt (Claude
-  Code) gets one with the thread, recipients, body and attachments. Elsewhere the first
+  Code) gets one with the thread, recipients, body and attachments, unless
+  `MCP_CONFIRM_ELICITATION=off`. Elsewhere the first
   call sends nothing and returns that preview plus a `confirmToken`; only a repeat call
   with the same arguments and that token sends. `MCP_CONFIRM_MODE` (above) decides
   whether the model must get your approval in chat before using it (`ask-user`, the
