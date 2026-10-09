@@ -122,7 +122,7 @@ if (bridgeless) {
   await bridge.start();
 }
 
-const client = new MyAtriumHealthClient({ transport });
+const client = new MyAtriumHealthClient({ transport, mode: bridgeless ? 'credentials' : 'bridge' });
 // Which patient the readers serve. Its own store, re-asserted after any
 // re-sign-in, because a fresh login puts the portal back on the account holder.
 // Only bridge-less mode can announce a new session, so only there may a

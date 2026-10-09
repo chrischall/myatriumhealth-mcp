@@ -80,14 +80,31 @@ export function isAuthWall(html: string): boolean {
 }
 
 /**
- * An empty body means the bridge relayed nothing — almost always no signed-in
- * my.atriumhealth.org tab is open, since fetchproxy runs the request INSIDE a
- * tab on the target host. Reporting this as "did not return JSON" points people
- * at the endpoint when the fix is in their browser. Worse, a naive
- * "is this the login page?" check treats an empty body as signed-in, because
- * the login marker is absent from empty text as surely as from a real page.
+ * How requests reach the portal, which decides what "sign in again" means:
+ * `bridge` relays through the user's signed-in Chrome tab; `credentials` signs
+ * in server-side with MAH_USERNAME / MAH_PASSWORD (including a hosted
+ * deployment), where there is no tab to open and the fix is mah_sign_in.
  */
-function emptyBody(what: string): McpToolError {
+export type TransportMode = 'bridge' | 'credentials';
+
+/**
+ * An empty body through the bridge means it relayed nothing — almost always no
+ * signed-in my.atriumhealth.org tab is open, since fetchproxy runs the request
+ * INSIDE a tab on the target host. Reporting this as "did not return JSON"
+ * points people at the endpoint when the fix is in their browser. Worse, a
+ * naive "is this the login page?" check treats an empty body as signed-in,
+ * because the login marker is absent from empty text as surely as from a real
+ * page. In credential mode there is no tab, so the advice is the session flow.
+ */
+function emptyBody(what: string, mode: TransportMode): McpToolError {
+  if (mode === 'credentials') {
+    return new McpToolError(`MyAtriumHealth returned an empty response for ${what}.`, {
+      hint:
+        'The session may have lapsed or be waiting on verification. Call mah_auth_status; ' +
+        'if it is not signed in, call mah_sign_in (and mah_verify_code if a code is ' +
+        'required), then retry.',
+    });
+  }
   return new McpToolError(
     `MyAtriumHealth returned an empty response for ${what} — the browser bridge relayed nothing.`,
     {
@@ -98,14 +115,18 @@ function emptyBody(what: string): McpToolError {
   );
 }
 
-function notSignedIn(): McpToolError {
+function notSignedIn(mode: TransportMode): McpToolError {
   return new NotAcceptedError(
     'Not signed in to MyAtriumHealth — the portal returned a sign-in or verification page.',
     {
       hint:
-        'Open https://my.atriumhealth.org/ in Chrome and sign in, completing any ' +
-        'verification prompt, then retry. MyChart sessions are short-lived, so this ' +
-        'recurs between uses.',
+        mode === 'credentials'
+          ? 'Call mah_sign_in, then mah_verify_code with the code the user receives if ' +
+            'verification is required, and retry. mah_auth_status reports where the ' +
+            'session stands.'
+          : 'Open https://my.atriumhealth.org/ in Chrome and sign in, completing any ' +
+            'verification prompt, then retry. MyChart sessions are short-lived, so this ' +
+            'recurs between uses.',
     },
   );
 }
@@ -119,10 +140,13 @@ class HtmlAnswerError extends McpToolError {}
 
 export interface MyAtriumHealthClientOptions {
   transport: MahTransport;
+  /** Which transport is in use, for sign-in remediation hints. Default `bridge`. */
+  mode?: TransportMode;
 }
 
 export class MyAtriumHealthClient {
   private readonly transport: MahTransport;
+  private readonly mode: TransportMode;
   /**
    * Cached antiforgery token — one page fetch per SESSION, not per request.
    * Dropped by {@link invalidateToken} and whenever a POST is answered with an
@@ -133,6 +157,7 @@ export class MyAtriumHealthClient {
 
   constructor(opts: MyAtriumHealthClientOptions) {
     this.transport = opts.transport;
+    this.mode = opts.mode ?? 'bridge';
   }
 
   async start(): Promise<void> {
@@ -149,8 +174,8 @@ export class MyAtriumHealthClient {
       method: 'GET',
       path: path.replace(/^\/+/, ''),
     });
-    if (res.body.trim() === '') throw emptyBody(path);
-    if (isAuthWall(res.body)) throw notSignedIn();
+    if (res.body.trim() === '') throw emptyBody(path, this.mode);
+    if (isAuthWall(res.body)) throw notSignedIn(this.mode);
     return res.body;
   }
 
@@ -202,11 +227,11 @@ export class MyAtriumHealthClient {
   /** Parse a JSON response, turning an HTML error page into a real error. */
   private parse<T>(body: string, endpoint: string): T {
     const trimmed = body.trimStart();
-    if (trimmed === '') throw emptyBody(endpoint);
+    if (trimmed === '') throw emptyBody(endpoint, this.mode);
     // A bare JSON string is a real answer too: GetComposeId and SendReply
     // return one (an id), captured from the app.
     if (!trimmed.startsWith('{') && !trimmed.startsWith('[') && !trimmed.startsWith('"')) {
-      if (isAuthWall(body)) throw notSignedIn();
+      if (isAuthWall(body)) throw notSignedIn(this.mode);
       const oops = /<title>([^<]*)</.exec(body)?.[1]?.trim();
       throw new HtmlAnswerError(
         `${endpoint} did not return JSON${oops ? ` — the portal returned "${oops}"` : ''}.`,

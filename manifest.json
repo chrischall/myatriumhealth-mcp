@@ -44,10 +44,6 @@
       "description": "Fetch the health-summary header and action plans"
     },
     {
-      "name": "mah_get_menu",
-      "description": "List the portal features this account exposes"
-    },
-    {
       "name": "mah_healthcheck",
       "description": "Report which hop is broken: the browser bridge when relaying, or the credential and session when signing in server-side"
     },

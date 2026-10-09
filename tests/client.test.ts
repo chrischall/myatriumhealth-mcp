@@ -340,3 +340,35 @@ describe('antiforgery token rotation', () => {
     expect(src).toMatch(/onSessionEstablished\([^)]*\)\s*=>\s*\{[^}]*client\.invalidateToken\(\)/s);
   });
 });
+
+// The sign-in remediation depends on the transport. "Open Chrome" is the fix
+// only when requests relay through a browser tab; with MAH_USERNAME/PASSWORD
+// (including a hosted deployment) there is no tab, and the fix is the
+// mah_sign_in / mah_verify_code flow.
+describe('sign-in remediation by transport mode', () => {
+  const hintOf = async (p: Promise<unknown>): Promise<string> => {
+    const err = await p.then(() => undefined, (e: unknown) => e as { hint?: string });
+    return String(err?.hint ?? '');
+  };
+
+  it('names mah_sign_in, not a Chrome tab, in credential mode', async () => {
+    const c = new MyAtriumHealthClient({ transport: new FakeTransport(() => ok(loginPage)), mode: 'credentials' });
+    const hint = await hintOf(c.api('allergies/LoadAllergies'));
+    expect(hint).toMatch(/mah_sign_in/);
+    expect(hint).toMatch(/mah_verify_code/);
+    expect(hint).not.toMatch(/Chrome/i);
+  });
+
+  it('does not blame the browser bridge for an empty body in credential mode', async () => {
+    const c = new MyAtriumHealthClient({ transport: new FakeTransport(() => ok('')), mode: 'credentials' });
+    const err = await c.page('Home').then(() => undefined, (e: unknown) => e as { message: string; hint?: string });
+    expect(err?.message).not.toMatch(/bridge/i);
+    expect(err?.hint ?? '').not.toMatch(/Chrome/i);
+    expect(err?.hint ?? '').toMatch(/mah_auth_status|mah_sign_in/);
+  });
+
+  it('keeps the Chrome-tab advice for the browser bridge (the default)', async () => {
+    const c = new MyAtriumHealthClient({ transport: new FakeTransport(() => ok(loginPage)) });
+    expect(await hintOf(c.api('allergies/LoadAllergies'))).toMatch(/Chrome/);
+  });
+});

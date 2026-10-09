@@ -156,7 +156,6 @@ stated rather than inferred.
 | `mah_list_insurance` | Insurance coverages on file |
 | `mah_list_care_team` | Care team providers, internal and external |
 | `mah_list_billing_accounts` | Billing accounts and balances (parsed from HTML) |
-| `mah_get_menu` | Which portal features this account exposes |
 | `mah_healthcheck` | Connection health — bridge status when relaying, credential and session status when signing in server-side |
 | `mah_auth_status` | Whether a session can be resumed and whether a device token is stored |
 | `mah_sign_in` | Sign in server-side; reports verification channels if a code is needed *(needs credentials)* |

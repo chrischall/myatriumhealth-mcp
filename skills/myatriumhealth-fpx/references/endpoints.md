@@ -75,6 +75,9 @@ prioritizedInstantDisplay, resultType, read}`.
     mah_api conversations/GetFoldersList     | jq '.folders'      # [{tag, badgeCount, totalCount}]
     mah_api search/LoadMenuInfo              | jq '[.submenus[] | {menu: .name, items: [.menuItems[].name]}]'
 
+`search/LoadMenuInfo` currently answers 302 to `Home/FiveHundred` (a server error), so
+expect that call to fail until its real parameters are captured.
+
 Folder tags seen: `1` Conversations/inbox, `2` Archive, `3`, `6`, `7`
 (Bookmarked / Appointments / Automated — exact mapping unconfirmed).
 

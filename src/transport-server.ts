@@ -5,6 +5,7 @@
 import { McpToolError } from '@chrischall/mcp-utils';
 import type { MyAtriumHealthAuth } from './auth.js';
 import { BASE, MfaRequiredError } from './auth.js';
+import { isAuthWall } from './client.js';
 import { NotAcceptedError, type FetchInit, type FetchResult, type MahTransport } from './transport.js';
 
 export class ServerTransport implements MahTransport {
@@ -100,6 +101,11 @@ export class ServerTransport implements MahTransport {
         });
       }
     }
+    // A verification interstitial (SecondaryValidation step-up) is not the
+    // login page, so it is not replayed — but it does mean this session is no
+    // longer good. Forget it, so the next call re-probes and can surface the
+    // verification-code flow instead of hitting the same wall indefinitely.
+    if (isAuthWall(out.body)) this.loggedIn = false;
     return out;
   }
 }

@@ -58,7 +58,6 @@ describe('tool roster', () => {
     expect(registeredToolNames().sort()).toEqual([
       'mah_auth_status',
       'mah_get_health_summary',
-      'mah_get_menu',
       'mah_get_patient_context',
       'mah_list_allergies',
       'mah_list_billing_accounts',
@@ -140,6 +139,15 @@ describe('the view parameter', () => {
   it('has no reader still taking the retired compact flag', () => {
     for (const [name, keys] of schemas()) {
       expect(keys, `${name} still takes compact`).not.toContain('compact');
+    }
+  });
+
+  // mah_list_billing_accounts once took `raw: true`, which handed the model the
+  // whole Billing/Summary page: unrelated PII in the headers plus the hidden
+  // antiforgery token and CSP nonce. A debugging aid is not a tool parameter.
+  it('has no reader offering a raw page-HTML escape hatch', () => {
+    for (const [name, keys] of schemas()) {
+      expect(keys, `${name} still takes raw`).not.toContain('raw');
     }
   });
 });
