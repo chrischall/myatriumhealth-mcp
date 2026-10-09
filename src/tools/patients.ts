@@ -17,7 +17,7 @@ export function registerPatientTools(
         'List the patients this login can open: the account holder plus anyone who has ' +
         'granted proxy access (a child, for example). Use the returned id with ' +
         'mah_set_active_patient.',
-      annotations: toolAnnotations({ readOnly: true }),
+      annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       inputSchema: z.object({}),
     },
     async () => minifiedResult(await listPatients(client)),
@@ -29,7 +29,7 @@ export function registerPatientTools(
       description:
         'Which patient the reading tools are currently returning data for. Confirmed ' +
         'with the portal rather than reported from memory.',
-      annotations: toolAnnotations({ readOnly: true }),
+      annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       inputSchema: z.object({}),
     },
     async () => {
@@ -59,7 +59,7 @@ export function registerPatientTools(
         'restarts. Select the account holder to return to the default. Through the browser ' +
         'bridge this also switches the patient shown in your own signed-in tab, and reads ' +
         'refuse (rather than switch it back) if you later change patients there yourself.',
-      annotations: toolAnnotations({ readOnly: false, idempotent: true, destructive: false }),
+      annotations: toolAnnotations({ readOnly: false, idempotent: true, destructive: false, openWorld: true }),
       inputSchema: z.object({
         patient_id: z.string().min(1).describe('id from mah_list_patients'),
       }),

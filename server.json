@@ -27,6 +27,43 @@
           "description": "true refuses mah_reply_message sends (previews still work). Default false.",
           "isRequired": false,
           "format": "boolean"
+        },
+        {
+          "name": "MAH_USERNAME",
+          "description": "MyAtriumHealth username. Set with MAH_PASSWORD to enable bridge-less mode. Leave both empty to relay through your signed-in browser tab.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "MAH_PASSWORD",
+          "description": "Portal password. Both are required; setting only one falls back to the bridge (with a warning).",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "MAH_DOTENV",
+          "description": "Path to a .env file read first; failing that ~/.myatriumhealth-mcp/.env, then ./.env. A real MAH_USERNAME / MAH_PASSWORD in the environment always wins.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "MAH_DEVICE_FILE",
+          "description": "Session state (0600), default ~/.myatriumhealth-mcp/device.json. Holds the live cookie jar as well as the device token — treat as a credential.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "FETCHPROXY_WS_HOST",
+          "description": "Bind interface for the fetchproxy concentrator, a literal IP only (default 127.0.0.1). Keep on loopback; it exists for hosted deployments that run each MCP in its own network namespace.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "FETCHPROXY_IDENTITY_DIR",
+          "description": "Absolute path where the fetchproxy long-term identity keypair is stored (default ~/.fetchproxy/identity/).",
+          "isRequired": false,
+          "format": "string"
         }
       ]
     }
