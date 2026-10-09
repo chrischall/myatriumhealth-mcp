@@ -58,7 +58,6 @@ describe('tool roster', () => {
     expect(registeredToolNames().sort()).toEqual([
       'mah_auth_status',
       'mah_get_health_summary',
-      'mah_get_menu',
       'mah_get_patient_context',
       'mah_list_allergies',
       'mah_list_billing_accounts',

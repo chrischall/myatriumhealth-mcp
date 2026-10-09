@@ -74,7 +74,7 @@ Only the `/app/*` SPA pages carry one; `/Home` and `/Messaging` do not.
 | `api/health-summary/FetchHealthSummary` | `header`, `actionPlans`, `patientFirstName`, `isPatientAdmitted` |
 | `api/goals/LoadPatientGoals` | `patientGoals`, `hasChartGraphSecurity`, `quickLinkDictionary` |
 | `api/conversations/GetFoldersList` | `folders[] {tag, badgeCount, totalCount}` |
-| `api/search/LoadMenuInfo` | `submenus[]`, `shortcuts[]`, `menuItemDictionary` |
+| `api/search/LoadMenuInfo` | `submenus[]`, `shortcuts[]`, `menuItemDictionary` — currently answers 302 to `Home/FiveHundred`, so no tool wraps it |
 | `api/test-results/GetWidgetList`, `GetResultsReleasePreferences`, `GetCommunityInfo` | — |
 | `api/immunizations/…`, `api/wound/GetWounds`, `api/education/GetPatEducationTitles` | — |
 

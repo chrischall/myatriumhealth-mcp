@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { McpToolError, minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
+import { minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { MyAtriumHealthClient } from '../client.js';
 import type { PatientContext } from '../patient-context.js';
@@ -156,39 +156,8 @@ export function registerAccountTools(
     },
   );
 
-  server.registerTool(
-    'mah_get_menu',
-    {
-      description:
-        'List the features this MyAtriumHealth account exposes (the portal menu). ' +
-        'Useful for discovering what is available before calling other tools.',
-      annotations: toolAnnotations({ readOnly: true }),
-      inputSchema: z.object({ view: viewArg() }),
-    },
-    async ({ view }) => {
-      return viewResponse(
-        view,
-        await patients.readAs(client, async () => {
-          const raw = (await client.api('search/LoadMenuInfo', {}, { retryOnTimeout: true })) as {
-            submenus?: { name?: string; menuItems?: { name?: string }[] }[];
-          };
-          // This endpoint currently answers 302 to /Home/FiveHundred — a server
-          // error, not an empty menu. Reported rather than flattened to []: an
-          // empty feature list reads as "this account has no features", which is a
-          // different and wrong answer. Cause not yet established.
-          if (raw === null || typeof raw !== 'object' || !Array.isArray(raw.submenus)) {
-            throw new McpToolError('MyAtriumHealth did not return a menu.', {
-              hint:
-                'search/LoadMenuInfo is failing server-side (302 to Home/FiveHundred). Use ' +
-                'mah_list_patients and the individual readers; the menu is not required for them.',
-            });
-          }
-          return (raw.submenus ?? []).map((s) => ({
-              menu: s.name,
-              items: (s.menuItems ?? []).map((i) => i.name),
-            }));
-        }),
-      );
-    },
-  );
+  // No mah_get_menu: search/LoadMenuInfo answers 302 to /Home/FiveHundred for
+  // this deployment, so a menu tool could only ever fail — after spending a
+  // patient-context confirmation — while its description invited the model to
+  // call it first. Re-add it once the endpoint's real parameters are captured.
 }
