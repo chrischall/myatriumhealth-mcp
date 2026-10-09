@@ -161,9 +161,13 @@ export function registerRecordTools(
               return lists
                 .flatMap((l) => l ?? [])
                 // Load and LoadExternal can surface the same provider; de-duplicate
-                // on ID so the union does not double-count.
+                // on ID so the union does not double-count. A record with no
+                // key at all is kept: collapsing every keyless record onto ''
+                // would silently drop all but the first.
                 .filter((p) => {
-                  const id = String(p['ID'] ?? p['Name'] ?? '');
+                  const key = p['ID'] ?? p['Name'];
+                  if (key === undefined || key === null || key === '') return true;
+                  const id = String(key);
                   if (seen.has(id)) return false;
                   seen.add(id);
                   return true;
