@@ -342,6 +342,26 @@ describe('ServerTransport session handling', () => {
     expect(dataHits).toBe(1);
     expect(logins).toBe(0);
   });
+
+  // A SecondaryValidation step-up is not a login page, so it used to leave
+  // loggedIn=true: every later call skipped the session check and kept hitting
+  // the same wall. It must be treated like an expired session — the next call
+  // re-probes, and so can surface the verification-code flow.
+  it('re-checks the session after a verification interstitial', async () => {
+    let homeProbes = 0;
+    const store = memoryStore();
+    store.save({ deviceId: '', username: USER, cookies: [['SESS', 'abc']] } as never);
+    const { fetchImpl } = harness((url) => {
+      if (url.endsWith('/Home')) { homeProbes++; return signedInHome; }
+      return { status: 200, body: '<title>MyAtriumHealth - Verify Your Identity</title>' };
+    });
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: store });
+    const { ServerTransport } = await import('../src/transport-server.js');
+    const t = new ServerTransport(auth);
+    await t.fetch({ method: 'POST', path: 'api/x/Y', body: '{}' });
+    await t.fetch({ method: 'POST', path: 'api/x/Y', body: '{}' });
+    expect(homeProbes).toBe(2);
+  });
 });
 
 describe('healthcheck must not authenticate', () => {
