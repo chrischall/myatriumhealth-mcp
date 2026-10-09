@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.6](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.5...v1.3.6) (2026-10-09)
+
+
+### Bug Fixes
+
+* annotate tools truthfully and sync manifests with the served tools ([#113](https://github.com/chrischall/myatriumhealth-mcp/issues/113)) ([a7dc818](https://github.com/chrischall/myatriumhealth-mcp/commit/a7dc81822e2474751f11cdbde9f20578d1aaef8b))
+* declare the plugin MCP config under the mcpServers key Claude Code reads ([#114](https://github.com/chrischall/myatriumhealth-mcp/issues/114)) ([82b26d1](https://github.com/chrischall/myatriumhealth-mcp/commit/82b26d1a05b2a5fce198608a297c95be9cd15dda))
+* **deps:** bump dotenv from 18.0.4 to 18.0.5 in the production-dependencies group ([#106](https://github.com/chrischall/myatriumhealth-mcp/issues/106)) ([418b7f3](https://github.com/chrischall/myatriumhealth-mcp/commit/418b7f3e298bca8275725f53a20e7c04a2ca9a08))
+* **deps:** bump source-map-js from 1.2.1 to 1.2.2 in the security group across 1 directory ([#112](https://github.com/chrischall/myatriumhealth-mcp/issues/112)) ([d270e9d](https://github.com/chrischall/myatriumhealth-mcp/commit/d270e9dce5f3c5c168e26db81e19a6d3f7ca8ddb))
+* **deps:** update @chrischall/mcp-utils to 3.0.0 ([#111](https://github.com/chrischall/myatriumhealth-mcp/issues/111)) ([fa50721](https://github.com/chrischall/myatriumhealth-mcp/commit/fa5072183d124e268230782ace216ca92fd0d19c))
+* resolve low-severity audit findings ([#108](https://github.com/chrischall/myatriumhealth-mcp/issues/108)) ([5e9d7d2](https://github.com/chrischall/myatriumhealth-mcp/commit/5e9d7d22e106fba0e5b5da67881d103173d90d47))
+
 ## [1.3.5](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.4...v1.3.5) (2026-10-07)
 
 
