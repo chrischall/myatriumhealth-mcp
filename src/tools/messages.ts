@@ -31,7 +31,7 @@ export function registerMessageTools(
         'message text does. Plain-text body, max 500 characters; each line becomes a paragraph. ' +
         'Optional attachments (PDF, image, Word or video, at most 3) need the server to sign in ' +
         'itself; the browser bridge cannot upload. Refused when MAH_READ_ONLY is set.',
-      annotations: toolAnnotations({ readOnly: false, destructive: true }),
+      annotations: toolAnnotations({ readOnly: false, destructive: true, openWorld: true }),
       inputSchema: z.object({
         conversationId: z
           .string()

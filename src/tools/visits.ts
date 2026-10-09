@@ -16,7 +16,7 @@ export function registerVisitTools(
     'mah_list_upcoming_visits',
     {
       description: 'List upcoming and in-progress MyAtriumHealth appointments.',
-      annotations: toolAnnotations({ readOnly: true }),
+      annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       inputSchema: z.object({
         view: viewArg(),
         timeZone: z
@@ -45,7 +45,7 @@ export function registerVisitTools(
         'List past MyAtriumHealth visits, grouped by organization. Compact output is ' +
         '{ items, complete, note }: complete is false when older visits exist, and the note ' +
         'says how to page back with before.',
-      annotations: toolAnnotations({ readOnly: true }),
+      annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       inputSchema: z.object({
         before: z
           .string()

@@ -31,7 +31,17 @@
       "command": "node",
       "args": [
         "${__dirname}/dist/bundle.js"
-      ]
+      ],
+      "env": {
+        "MAH_USERNAME": "${user_config.mah_username}",
+        "MAH_PASSWORD": "${user_config.mah_password}",
+        "MAH_DOTENV": "${user_config.mah_dotenv}",
+        "MAH_DEVICE_FILE": "${user_config.mah_device_file}",
+        "MAH_WS_PORT": "${user_config.mah_ws_port}",
+        "MAH_READ_ONLY": "${user_config.mah_read_only}",
+        "FETCHPROXY_WS_HOST": "${user_config.fetchproxy_ws_host}",
+        "FETCHPROXY_IDENTITY_DIR": "${user_config.fetchproxy_identity_dir}"
+      }
     }
   },
   "tools": [
@@ -128,6 +138,57 @@
       "description": "Point every reading tool at one of the patients from mah_list_patients."
     }
   ],
+  "user_config": {
+    "mah_username": {
+      "type": "string",
+      "title": "Username (bridge-less mode)",
+      "description": "MyAtriumHealth username. Set with MAH_PASSWORD to enable bridge-less mode. Leave both empty to relay through your signed-in browser tab.",
+      "required": false
+    },
+    "mah_password": {
+      "type": "string",
+      "title": "Password (bridge-less mode)",
+      "description": "Portal password. Both are required; setting only one falls back to the bridge (with a warning).",
+      "required": false,
+      "sensitive": true
+    },
+    "mah_dotenv": {
+      "type": "string",
+      "title": "Credentials .env file (optional)",
+      "description": "Path to a .env file read first; failing that ~/.myatriumhealth-mcp/.env, then ./.env. A real MAH_USERNAME / MAH_PASSWORD in the environment always wins.",
+      "required": false
+    },
+    "mah_device_file": {
+      "type": "string",
+      "title": "Session state file (optional)",
+      "description": "Session state (0600), default ~/.myatriumhealth-mcp/device.json. Holds the live cookie jar as well as the device token — treat as a credential.",
+      "required": false
+    },
+    "mah_ws_port": {
+      "type": "string",
+      "title": "fetchproxy port (advanced)",
+      "description": "fetchproxy concentrator port (bridge mode only, default 37149). The whole fleet shares this one port; override only when hosting.",
+      "required": false
+    },
+    "mah_read_only": {
+      "type": "string",
+      "title": "Read-only (refuse replies)",
+      "description": "true refuses mah_reply_message sends (previews still work). The tool stays listed either way. Default false.",
+      "required": false
+    },
+    "fetchproxy_ws_host": {
+      "type": "string",
+      "title": "fetchproxy bind address (advanced)",
+      "description": "Bind interface for the fetchproxy concentrator, a literal IP only (default 127.0.0.1). Keep on loopback; it exists for hosted deployments that run each MCP in its own network namespace.",
+      "required": false
+    },
+    "fetchproxy_identity_dir": {
+      "type": "string",
+      "title": "fetchproxy identity directory (advanced)",
+      "description": "Absolute path where the fetchproxy long-term identity keypair is stored (default ~/.fetchproxy/identity/).",
+      "required": false
+    }
+  },
   "compatibility": {
     "platforms": [
       "darwin",

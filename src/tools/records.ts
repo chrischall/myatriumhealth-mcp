@@ -15,7 +15,7 @@ export function registerRecordTools(
     'mah_list_allergies',
     {
       description: 'List allergies and their reactions from the MyAtriumHealth health summary.',
-      annotations: toolAnnotations({ readOnly: true }),
+      annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
@@ -47,7 +47,7 @@ export function registerRecordTools(
     'mah_list_health_issues',
     {
       description: 'List the problem list (current health issues) recorded in MyAtriumHealth.',
-      annotations: toolAnnotations({ readOnly: true }),
+      annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
@@ -72,7 +72,7 @@ export function registerRecordTools(
     'mah_list_immunizations',
     {
       description: 'List immunizations and administration dates, grouped by organization.',
-      annotations: toolAnnotations({ readOnly: true }),
+      annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
@@ -106,7 +106,7 @@ export function registerRecordTools(
     {
       description:
         'List current medications: name, patient-friendly name, dosing instructions (sig) and prescriber.',
-      annotations: toolAnnotations({ readOnly: true }),
+      annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
@@ -143,7 +143,7 @@ export function registerRecordTools(
       description:
         'List care team providers — name, specialty and relationship — from this ' +
         'organization and from linked outside organizations.',
-      annotations: toolAnnotations({ readOnly: true }),
+      annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
@@ -193,7 +193,7 @@ export function registerRecordTools(
     'mah_list_goals',
     {
       description: 'List patient goals tracked in MyAtriumHealth.',
-      annotations: toolAnnotations({ readOnly: true }),
+      annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {

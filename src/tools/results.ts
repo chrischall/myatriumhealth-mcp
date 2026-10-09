@@ -19,7 +19,7 @@ export function registerResultTools(
         'Individual result values load on the detail page and are not in this list. Compact ' +
         'output is { items, complete, note }: complete is false when the portal loaded only ' +
         'part of the history.',
-      annotations: toolAnnotations({ readOnly: true }),
+      annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       inputSchema: z.object({
         view: viewArg(),
       }),

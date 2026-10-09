@@ -17,7 +17,7 @@ export function registerBillingTools(
       description:
         'List billing accounts with balance due, grouped as outstanding, zero-balance ' +
         'or guarantor-authorized. Amounts are returned as displayed (formatted strings).',
-      annotations: toolAnnotations({ readOnly: true }),
+      annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       inputSchema: z.object({ view: viewArg() }),
     },
     // Billing is one of the few areas with NO data endpoint — it issues no XHR,
