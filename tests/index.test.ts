@@ -142,4 +142,13 @@ describe('the view parameter', () => {
       expect(keys, `${name} still takes compact`).not.toContain('compact');
     }
   });
+
+  // mah_list_billing_accounts once took `raw: true`, which handed the model the
+  // whole Billing/Summary page: unrelated PII in the headers plus the hidden
+  // antiforgery token and CSP nonce. A debugging aid is not a tool parameter.
+  it('has no reader offering a raw page-HTML escape hatch', () => {
+    for (const [name, keys] of schemas()) {
+      expect(keys, `${name} still takes raw`).not.toContain('raw');
+    }
+  });
 });
