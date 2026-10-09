@@ -135,7 +135,7 @@ type Handler = (args: Record<string, unknown>, ctx: unknown) => Promise<Result>;
  * reply goes through the two-phase confirm-token flow; with it, through a real
  * prompt, answered by `inputResponses` on the retry.
  */
-function ctx(opts: { elicitation?: boolean; inputResponses?: unknown } = {}): unknown {
+function ctx(opts: { elicitation?: boolean; inputResponses?: unknown; requestState?: string } = {}): unknown {
   return {
     mcpReq: {
       envelope: {
@@ -143,6 +143,8 @@ function ctx(opts: { elicitation?: boolean; inputResponses?: unknown } = {}): un
         'io.modelcontextprotocol/clientCapabilities': opts.elicitation ? { elicitation: { form: {} } } : { extensions: {} },
       },
       inputResponses: opts.inputResponses,
+      // The client echoes the prompt round's requestState on the retry.
+      requestState: () => opts.requestState,
     },
   };
 }
@@ -583,9 +585,40 @@ describe('mah_reply_message — a client that can show a confirmation prompt', (
 
   it('sends once the user accepts the prompt', async () => {
     const p = portal();
-    const accepted = ctx({ elicitation: true, inputResponses: { confirmation: { action: 'accept', content: { confirmed: true } } } });
-    const out = await tool(p).raw({ conversationId: HTH, body: BODY }, accepted);
+    const t = tool(p);
+    // The acceptance is bound to this patient and these arguments through the
+    // prompt round's requestState, which the client echoes on the retry.
+    const asked = (await t.result({ conversationId: HTH, body: BODY }, ctx({ elicitation: true }))) as { requestState?: string };
+    expect(typeof asked.requestState).toBe('string');
+    const accepted = ctx({
+      elicitation: true,
+      inputResponses: { confirmation: { action: 'accept', content: { confirmed: true } } },
+      requestState: asked.requestState,
+    });
+    const out = await t.raw({ conversationId: HTH, body: BODY }, accepted);
     expect(out.sent).toBe(true);
+  });
+
+  it('refuses an acceptance whose requestState was minted for a different reply', async () => {
+    const p = portal();
+    const t = tool(p);
+    const asked = (await t.result({ conversationId: HTH, body: 'a different reply' }, ctx({ elicitation: true }))) as { requestState?: string };
+    const accepted = ctx({
+      elicitation: true,
+      inputResponses: { confirmation: { action: 'accept', content: { confirmed: true } } },
+      requestState: asked.requestState,
+    });
+    const r = (await t.result({ conversationId: HTH, body: BODY }, accepted)) as { resultType?: string };
+    expect(r.resultType).toBe('input_required');
+    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+  });
+
+  it('refuses an acceptance that carries no requestState, and sends nothing', async () => {
+    const p = portal();
+    const accepted = ctx({ elicitation: true, inputResponses: { confirmation: { action: 'accept', content: { confirmed: true } } } });
+    const r = (await tool(p).result({ conversationId: HTH, body: BODY }, accepted)) as { isError?: boolean };
+    expect(r.isError).toBe(true);
+    expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
   });
 
   it('sends nothing when the user declines', async () => {

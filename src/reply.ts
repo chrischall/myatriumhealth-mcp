@@ -301,6 +301,9 @@ export async function replyToConversation(
     // out as. A client that can show a prompt gets one; otherwise the fleet's
     // confirm-token flow (MCP_CONFIRM_MODE) previews first and binds the send
     // to this exact patient, thread, recipients, body and attachments.
+    // The tool's arguments minus the token: bound into both the acceptance and
+    // the token, so neither can authorise a different reply.
+    const { confirmToken, ...args } = input;
     const gate = await requireConfirmationWithFallback(ctx, confirmationFromEnv({
       action: 'mah.reply_message',
       message: 'Review and confirm this reply. Your care team will see it; sending cannot be undone.',
@@ -308,7 +311,8 @@ export async function replyToConversation(
       details: summary,
       tool: 'mah_reply_message',
       account: patient,
-      confirmToken: input.confirmToken,
+      args,
+      confirmToken,
       instruction: ASK_USER_INSTRUCTION,
       subject: () => ({
         target: input.conversationId,
