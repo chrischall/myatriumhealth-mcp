@@ -2,6 +2,14 @@ version: 1
 name: MyAtriumHealth
 slug: myatriumhealth
 
+# Sample prompts for the public catalog. All read-only.
+examples:
+  - prompt: Do I have any upcoming appointments at Atrium Health?
+    note: Lists upcoming and in-progress visits.
+  - prompt: Show my recent lab results and flag anything marked abnormal.
+    note: Lists results with abnormal flags and provider comments, not the values.
+  - prompt: What medications am I currently on, and who prescribed each one?
+
 # This server has TWO transports and the hosted one is the bridge-less path:
 # with MAH_USERNAME/MAH_PASSWORD set it signs in server-side with its own cookie
 # jar, so no browser, extension or bridge is involved and this registers like any
