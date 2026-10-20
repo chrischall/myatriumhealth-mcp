@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.8](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.7...v1.3.8) (2026-10-20)
+
+
+### Bug Fixes
+
+* **auth:** redact JSON-escaped passwords and credential shapes from login errors ([#125](https://github.com/chrischall/myatriumhealth-mcp/issues/125)) ([85bf6cd](https://github.com/chrischall/myatriumhealth-mcp/commit/85bf6cd5eb6977453d53da7c3fd6d7308b8a89f0))
+* **deps:** bump vite from 8.3.2 to 8.3.4 in the security group across 1 directory ([#126](https://github.com/chrischall/myatriumhealth-mcp/issues/126)) ([84a7847](https://github.com/chrischall/myatriumhealth-mcp/commit/84a784732672e5c7c06aa4558bdc3a9e5d9d691e))
+
+
+### Documentation
+
+* **mint:** add a note to the medications sample prompt ([#124](https://github.com/chrischall/myatriumhealth-mcp/issues/124)) ([28e98ef](https://github.com/chrischall/myatriumhealth-mcp/commit/28e98ef4dd589b5c4bed6252882f52d13c5b1c6b))
+* **mint:** add a summary for the public catalog ([#123](https://github.com/chrischall/myatriumhealth-mcp/issues/123)) ([0930431](https://github.com/chrischall/myatriumhealth-mcp/commit/09304311a22567228c643c45582055d583fe39ca))
+* **mint:** add sample prompts for the public catalog ([#120](https://github.com/chrischall/myatriumhealth-mcp/issues/120)) ([ea06080](https://github.com/chrischall/myatriumhealth-mcp/commit/ea06080ab33f531e7bbd93aa8c9f5157b13eea09))
+
 ## [1.3.7](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.6...v1.3.7) (2026-10-15)
 
 
