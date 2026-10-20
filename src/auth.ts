@@ -18,7 +18,12 @@
 // `RememberDeviceId` the portal returns is recorded but deliberately never sent:
 // this portal will not redeem it, and including it breaks the challenge.
 
-import { detectEdgeBlock, EdgeBlockedError, McpToolError } from '@chrischall/mcp-utils';
+import {
+  detectEdgeBlock,
+  EdgeBlockedError,
+  McpToolError,
+  truncateErrorMessage,
+} from '@chrischall/mcp-utils';
 
 export const BASE = 'https://my.atriumhealth.org/myatriumhealth';
 
@@ -239,13 +244,6 @@ export class MyAtriumHealthAuth {
     return live;
   }
 
-  /** Redact the live password out of any text before it can surface. */
-  private scrub(text: string): string {
-    const { password } = this.credentials();
-    if (password === '') return text;
-    return text.split(password).join('[redacted]');
-  }
-
   /** Set when a response changed the jar, so rotation is written back. */
   private jarDirty = false;
 
@@ -394,7 +392,10 @@ export class MyAtriumHealthAuth {
 
     if (res.status >= 500) {
       throw new McpToolError(
-        `MyAtriumHealth login failed upstream (${res.status}): ${this.scrub(body).slice(0, 200)}`,
+        `MyAtriumHealth login failed upstream (${res.status}): ${truncateErrorMessage(body, 200, {
+          values: [this.credentials().password],
+          placeholder: '[redacted]',
+        })}`,
       );
     }
 
