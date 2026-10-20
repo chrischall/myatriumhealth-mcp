@@ -93,6 +93,44 @@ describe('server-side login', () => {
     expect(JSON.stringify(err)).not.toContain(PASS);
     expect(String((err as Error).message)).not.toContain(PASS);
   });
+
+  it('scrubs the JSON-escaped spelling of the password from an echoed JSON body', async () => {
+    const pass = 'quo"te\\slash';
+    const { fetchImpl } = harness((url) =>
+      url.includes('DoLogin')
+        ? { status: 500, body: JSON.stringify({ error: 'bad', echoed: pass }) }
+        : { body: loginPage });
+    const auth = new MyAtriumHealthAuth({
+      fetchImpl,
+      credentials: () => ({ username: USER, password: pass }),
+      persistence: memoryStore(),
+    });
+    const err = (await auth.login().then(() => null, (e: Error) => e)) as Error;
+    expect(err.message).not.toContain(JSON.stringify(pass).slice(1, -1));
+    expect(err.message).not.toContain(pass);
+    expect(err.message).toContain('[redacted]');
+  });
+
+  it('also redacts credential shapes (a Bearer token) from the upstream body', async () => {
+    const { fetchImpl } = harness((url) =>
+      url.includes('DoLogin')
+        ? { status: 500, body: 'failed: Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123456789' }
+        : { body: loginPage });
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: memoryStore() });
+    const err = (await auth.login().then(() => null, (e: Error) => e)) as Error;
+    expect(err.message).not.toContain('abcdefghijklmnopqrstuvwxyz0123456789');
+  });
+
+  it('caps the surfaced upstream body and marks the cut', async () => {
+    const { fetchImpl } = harness((url) =>
+      url.includes('DoLogin')
+        ? { status: 500, body: 'x'.repeat(5000) }
+        : { body: loginPage });
+    const auth = new MyAtriumHealthAuth({ fetchImpl, credentials: creds, persistence: memoryStore() });
+    const err = (await auth.login().then(() => null, (e: Error) => e)) as Error;
+    expect(err.message).toContain('x'.repeat(200) + '… [truncated]');
+    expect(err.message).not.toContain('x'.repeat(201));
+  });
 });
 
 describe('MFA bootstrap', () => {
