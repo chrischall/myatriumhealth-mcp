@@ -1,6 +1,10 @@
 version: 1
 name: MyAtriumHealth
 slug: myatriumhealth
+summary: >-
+  Read your Atrium Health MyChart records: test results, medications, allergies,
+  immunizations, visits, care team and billing, plus portal messages you can
+  reply to.
 
 # Sample prompts for the public catalog. All read-only.
 examples:

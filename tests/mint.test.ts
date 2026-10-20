@@ -74,3 +74,15 @@ describe('mint.yaml auth flow stays in step with the tools', () => {
     expect(envNames.filter((n) => fieldNames.includes(n as string))).toEqual([]);
   });
 });
+
+describe('mint.yaml catalog listing', () => {
+  // The public catalog shows `summary`; without one the listing is blank.
+  // The schema caps it at 200 UTF-16 code units, which is what .length counts.
+  it('has a one-line summary within the schema limit', () => {
+    const m = mint.match(/^summary: >-\n((?: {2}.+\n)+)/m);
+    expect(m, 'mint.yaml has no folded `summary: >-` block').not.toBeNull();
+    const summary = (m![1] as string).split('\n').map((l) => l.trim()).filter(Boolean).join(' ');
+    expect(summary.length).toBeGreaterThan(0);
+    expect(summary.length).toBeLessThanOrEqual(200);
+  });
+});
