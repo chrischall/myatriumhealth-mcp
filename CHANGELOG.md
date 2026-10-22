@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.9](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.8...v1.3.9) (2026-10-22)
+
+
+### Bug Fixes
+
+* **deps:** bump the production-dependencies group with 3 updates ([#128](https://github.com/chrischall/myatriumhealth-mcp/issues/128)) ([9d9cfdd](https://github.com/chrischall/myatriumhealth-mcp/commit/9d9cfdd812b1c2d66b472e4f8f0ffd3e4d406479))
+
 ## [1.3.8](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.7...v1.3.8) (2026-10-20)
 
 
