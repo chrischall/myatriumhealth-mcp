@@ -38,7 +38,13 @@ export function registerVisitTools(
           ComponentNumber: '5',
         }, {}, { retryOnTimeout: true });
       });
-      if (isBrief(view)) return briefResult(served.patient, briefUpcomingVisits(served.data));
+      if (isBrief(view)) {
+        return briefResult(
+          served.patient,
+          briefUpcomingVisits(served.data),
+          'Visit type names are written by the health system.',
+        );
+      }
       return viewResponse(view, served);
     },
   );

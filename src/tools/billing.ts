@@ -48,7 +48,13 @@ export function registerBillingTools(
         }
         return accounts;
       });
-      if (isBrief(view)) return briefResult(served.patient, briefBillingAccounts(served.data));
+      if (isBrief(view)) {
+        return briefResult(
+          served.patient,
+          briefBillingAccounts(served.data),
+          'Billing account names are written by the health system.',
+        );
+      }
       return viewResponse(view, served);
     },
   );
