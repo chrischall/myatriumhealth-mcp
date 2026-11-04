@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.4.0...v1.4.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **brief:** align the brief view with the fleet contract ([#135](https://github.com/chrischall/myatriumhealth-mcp/issues/135)) ([2a22a85](https://github.com/chrischall/myatriumhealth-mcp/commit/2a22a85e27f4c102c448f9cf9fcd6802c83134fc))
+
 ## [1.4.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.8...v1.4.0) (2026-11-04)
 
 
