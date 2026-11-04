@@ -237,6 +237,7 @@ function expectBrief(lines: string[]) {
 describe('brief view on the canonical reads', () => {
   it('mah_list_messages answers one line per conversation, dated by its latest message', async () => {
     const lines = await brief('mah_list_messages');
+    expect(lines.shift()).toBe('-- patient: Pat');
     expect(lines).toHaveLength(3);
     expectBrief(lines);
     expect(lines[0]).toBe('Your refill request — 2026-11-02T09:30:00Z — unread');
@@ -246,6 +247,7 @@ describe('brief view on the canonical reads', () => {
 
   it('mah_list_upcoming_visits answers one line per visit, each once', async () => {
     const lines = await brief('mah_list_upcoming_visits');
+    expect(lines.shift()).toBe('-- patient: Pat');
     expect(lines).toEqual([
       'Lab Visit — 2026-11-04T08:00:00 — in progress',
       'Office Visit — 2026-11-06 — upcoming',
@@ -256,6 +258,7 @@ describe('brief view on the canonical reads', () => {
 
   it('mah_list_billing_accounts answers one line per account with a balance', async () => {
     const lines = await brief('mah_list_billing_accounts');
+    expect(lines.shift()).toBe('-- patient: Pat');
     expect(lines).toEqual(['Guarantor Account — no date — $42.00 due']);
     expectBrief(lines);
   });
@@ -271,6 +274,21 @@ describe('brief view on the canonical reads', () => {
 });
 
 describe('brief helpers', () => {
+  it('leads every brief answer with the patient the read ran as, as a note line', async () => {
+    const { briefResult } = await import('../src/brief.js');
+    const text = (r: { content: { text: string }[] }) => r.content[0]!.text;
+    // A proxy read (a child's chart) names that patient, so the lines are not
+    // mistaken for the account holder's.
+    expect(text(briefResult('Sam', ['Physical — no date — upcoming']))).toBe(
+      '-- patient: Sam\nPhysical — no date — upcoming',
+    );
+    // Nothing listed still says whose chart was read.
+    expect(text(briefResult('Sam', []))).toBe('-- patient: Sam');
+    // A label can never break out of its one note line.
+    expect(text(briefResult(' Sam\n  Lee ', []))).toBe('-- patient: Sam Lee');
+    expect(text(briefResult('', []))).toBe('-- patient: account holder');
+  });
+
   it('dates only what reads as a date', async () => {
     const { isoDate } = await import('../src/brief.js');
     expect(isoDate('Amount due')).toBe('no date');

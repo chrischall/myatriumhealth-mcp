@@ -98,7 +98,8 @@ passing the local org returns HTTP 500). The helper handles all of that.
 
 The myatriumhealth-mcp server (not this skill) joins the **health** group on hosts
 that read its `_meta.mint` hints. Its canonical reads, each with `view: 'brief'`
-(one line per item, `title — <ISO date | no date> — <status>`):
+(one line per item, `title — <ISO date | no date> — <status>`, after a leading
+`-- patient: <label>` note naming whose chart was read):
 
 - **what's new** — `mah_list_messages`: Message Center threads, dated by the latest
   message, `unread` / `read`.
