@@ -38,7 +38,7 @@ export function registerVisitTools(
           ComponentNumber: '5',
         }, {}, { retryOnTimeout: true });
       });
-      if (isBrief(view)) return briefResult(briefUpcomingVisits(served.data));
+      if (isBrief(view)) return briefResult(served.patient, briefUpcomingVisits(served.data));
       return viewResponse(view, served);
     },
   );

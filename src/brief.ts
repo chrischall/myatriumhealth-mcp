@@ -5,7 +5,8 @@ import { MAH_VIEWS, viewArg } from './view.js';
  * The `brief` rung, offered only on the canonical reads a context group asks
  * (mah_list_messages, mah_list_upcoming_visits, mah_list_billing_accounts):
  * one text line per item, `title — <ISO date | no date> — <status>`, at most
- * 120 characters, the title shortened to fit.
+ * 120 characters, the title shortened to fit, after a `-- patient: <label>`
+ * note line naming whose chart was read.
  *
  * It sits beside the fleet's compact/full rungs rather than inside
  * `viewParam`, whose vocabulary is the projection ladder; `brief` is a
@@ -20,7 +21,7 @@ export function briefViewArg(itemLine: string) {
   return z
     .enum(BRIEF_VIEWS)
     .optional()
-    .describe(`${viewArg().description ?? ''} "brief" answers one text line per item: ${itemLine}.`.trim());
+    .describe(`${viewArg().description ?? ''} "brief" answers one text line per item: ${itemLine}, after a "-- patient: <name>" note line naming whose chart was read.`.trim());
 }
 
 export function isBrief(view: string | undefined): boolean {
@@ -53,9 +54,17 @@ export function briefLine(title: string | undefined, date: string, status: strin
   return `${shown.length > room ? `${shown.slice(0, Math.max(room - 1, 0))}…` : shown}${tail}`;
 }
 
-/** The answer a brief read returns: the lines, newline-joined. */
-export function briefResult(lines: string[]) {
-  return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+/**
+ * The answer a brief read returns: a leading `-- patient: <label>` note, then
+ * the lines, newline-joined. A line starting with `-- ` is a note, not an item
+ * (the fleet's brief-view contract), so the gateway does not count it. The
+ * note is always there because a proxy login (a child's chart) reads as
+ * another patient, and the other rungs carry `patient` beside the data — the
+ * brief rung must not drop it.
+ */
+export function briefResult(patient: string, lines: string[]) {
+  const label = str(patient) ?? 'account holder';
+  return { content: [{ type: 'text' as const, text: [`-- patient: ${label}`, ...lines].join('\n') }] };
 }
 
 type Rec = Record<string, unknown>;

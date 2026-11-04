@@ -48,7 +48,7 @@ export function registerBillingTools(
         }
         return accounts;
       });
-      if (isBrief(view)) return briefResult(briefBillingAccounts(served.data));
+      if (isBrief(view)) return briefResult(served.patient, briefBillingAccounts(served.data));
       return viewResponse(view, served);
     },
   );

@@ -71,9 +71,8 @@ export function registerAccountTools(
     },
     async ({ folder, view }) => {
       if (isBrief(view)) {
-        return briefResult(
-          briefConversations((await patients.readAs(client, () => client.listConversations(folder))).data),
-        );
+        const served = await patients.readAs(client, () => client.listConversations(folder));
+        return briefResult(served.patient, briefConversations(served.data));
       }
       return viewResponse(
         view,
