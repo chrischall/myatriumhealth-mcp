@@ -1,10 +1,12 @@
 import { z } from 'zod';
+import { healthMeta } from './hints.js';
 import { minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
 import { isCompact, viewArg, viewResponse } from '../view.js';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { MyAtriumHealthClient } from '../client.js';
 import type { PatientContext } from '../patient-context.js';
 import { project, tidy } from './_project.js';
+import { briefResult, briefUpcomingVisits, briefViewArg, isBrief } from '../brief.js';
 
 /** Epic's visit endpoints are the older form-encoded generation. */
 export function registerVisitTools(
@@ -17,8 +19,12 @@ export function registerVisitTools(
     {
       description: 'List upcoming and in-progress MyAtriumHealth appointments.',
       annotations: toolAnnotations({ readOnly: true, openWorld: true }),
+      _meta: healthMeta('whats-on', {
+        canonical: true,
+        aliases: ['appointments', 'appointment', 'doctor', 'checkup', 'visits'],
+      }),
       inputSchema: z.object({
-        view: viewArg(),
+        view: briefViewArg('<visit type> — <ISO date or "no date"> — <in progress|upcoming>'),
         timeZone: z
           .string()
           .default('America/New_York')
@@ -26,15 +32,14 @@ export function registerVisitTools(
       }),
     },
     async ({ timeZone, view }) => {
-      return viewResponse(
-        view, await patients.readAs(client, async () => {
-          const raw = await client.legacy('Visits/VisitsList/LoadUpcoming', {
-            timeZone,
-            ComponentNumber: '5',
-          }, {}, { retryOnTimeout: true });
-          return raw;
-        }),
-      );
+      const served = await patients.readAs(client, async () => {
+        return await client.legacy('Visits/VisitsList/LoadUpcoming', {
+          timeZone,
+          ComponentNumber: '5',
+        }, {}, { retryOnTimeout: true });
+      });
+      if (isBrief(view)) return briefResult(briefUpcomingVisits(served.data));
+      return viewResponse(view, served);
     },
   );
 
@@ -46,6 +51,7 @@ export function registerVisitTools(
         '{ items, complete, note }: complete is false when older visits exist, and the note ' +
         'says how to page back with before.',
       annotations: toolAnnotations({ readOnly: true, openWorld: true }),
+      _meta: healthMeta('lookup', { aliases: ['past visits', 'last appointment'] }),
       inputSchema: z.object({
         before: z
           .string()

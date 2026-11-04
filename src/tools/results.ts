@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { healthMeta } from './hints.js';
 import { minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { MyAtriumHealthClient } from '../client.js';
@@ -20,6 +21,7 @@ export function registerResultTools(
         'output is { items, complete, note }: complete is false when the portal loaded only ' +
         'part of the history.',
       annotations: toolAnnotations({ readOnly: true, openWorld: true }),
+      _meta: healthMeta('whats-new', { aliases: ['test results', 'labs', 'lab results', 'blood work', 'results'] }),
       inputSchema: z.object({
         view: viewArg(),
       }),

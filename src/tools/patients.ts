@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { McpToolError, minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
 import { z } from 'zod';
+import { healthMeta } from './hints.js';
 import type { MyAtriumHealthClient } from '../client.js';
 import type { PatientContext } from '../patient-context.js';
 import { listPatients, whoAmI } from '../patients.js';
@@ -18,6 +19,7 @@ export function registerPatientTools(
         'granted proxy access (a child, for example). Use the returned id with ' +
         'mah_set_active_patient.',
       annotations: toolAnnotations({ readOnly: true, openWorld: true }),
+      _meta: healthMeta('lookup'),
       inputSchema: z.object({}),
     },
     async () => minifiedResult(await listPatients(client)),
@@ -30,6 +32,7 @@ export function registerPatientTools(
         'Which patient the reading tools are currently returning data for. Confirmed ' +
         'with the portal rather than reported from memory.',
       annotations: toolAnnotations({ readOnly: true, openWorld: true }),
+      _meta: healthMeta('lookup'),
       inputSchema: z.object({}),
     },
     async () => {
@@ -60,6 +63,7 @@ export function registerPatientTools(
         'bridge this also switches the patient shown in your own signed-in tab, and reads ' +
         'refuse (rather than switch it back) if you later change patients there yourself.',
       annotations: toolAnnotations({ readOnly: false, idempotent: true, destructive: false, openWorld: true }),
+      _meta: healthMeta('change'),
       inputSchema: z.object({
         patient_id: z.string().min(1).describe('id from mah_list_patients'),
       }),

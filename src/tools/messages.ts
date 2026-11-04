@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { healthMeta } from './hints.js';
 import { confirmTokenParam, minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { MyAtriumHealthClient } from '../client.js';
@@ -32,6 +33,7 @@ export function registerMessageTools(
         'Optional attachments (PDF, image, Word or video, at most 3) need the server to sign in ' +
         'itself; the browser bridge cannot upload. Refused when MAH_READ_ONLY is set.',
       annotations: toolAnnotations({ readOnly: false, destructive: true, openWorld: true }),
+      _meta: healthMeta('send', { aliases: ['reply', 'message the doctor', 'write back'] }),
       inputSchema: z.object({
         conversationId: z
           .string()

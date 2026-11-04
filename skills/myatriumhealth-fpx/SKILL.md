@@ -93,3 +93,23 @@ only (filter `api/conversations/GetOrganizations` on the explicit `isLocal` flag
 passing the local org returns HTTP 500). The helper handles all of that.
 
 `api/item-feed/FetchItemFeed` still needs parameters that have not been captured.
+
+## In context groups
+
+The myatriumhealth-mcp server (not this skill) joins the **health** group on hosts
+that read its `_meta.mint` hints. Its canonical reads, each with `view: 'brief'`
+(one line per item, `title — <ISO date | no date> — <status>`):
+
+- **what's new** — `mah_list_messages`: Message Center threads, dated by the latest
+  message, `unread` / `read`.
+- **what's on** — `mah_list_upcoming_visits`: appointments, `in progress` /
+  `upcoming`.
+- **what's due** — `mah_list_billing_accounts`: accounts with a balance, `<amount> due`.
+
+None takes a subject: every read serves the session's active patient
+(`mah_set_active_patient` switches it, a write), so a question about another patient
+on the same login is a switch first, not a fan-out. A compound ask looks like "any new
+messages from the doctor, and do I have appointments this week?" — one line per item
+from each read. Through the browser bridge (no `MAH_USERNAME` / `MAH_PASSWORD`), the
+group answers "needs your browser open" when no signed-in my.atriumhealth.org tab is
+there to relay through.

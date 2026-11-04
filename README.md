@@ -184,6 +184,14 @@ projection warns to stderr and returns `{ projectionFailed: true, endpoint, topL
 note }` rather than an empty list — key names only, never the raw health record; ask for
 `view: 'full'` to see the portal's payload.
 
+Three readers also take `view: 'brief'` — one line per item, `title — <ISO date | no
+date> — <status>`, at most 120 characters — for hosts that group MCPs by context
+(each tool carries `_meta.mint` hints; this server is in the `health` group):
+`mah_list_messages` (what's new), `mah_list_upcoming_visits` (what's on) and
+`mah_list_billing_accounts` (what's due; accounts with a balance only). The upcoming-visit
+line reads `VisitTypeName` and `PrimaryDate`, which have not been checked against a
+captured upcoming payload, so it falls back to `Appointment — no date` rather than guess.
+
 ## Sessions expire, and they do it quietly
 
 MyChart answers an **expired session with HTTP 200 whose body is the login page**, never
