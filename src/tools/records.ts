@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { healthMeta } from './hints.js';
 import { minifiedResult, toolAnnotations } from '@chrischall/mcp-utils';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { MyAtriumHealthClient } from '../client.js';
@@ -16,6 +17,7 @@ export function registerRecordTools(
     {
       description: 'List allergies and their reactions from the MyAtriumHealth health summary.',
       annotations: toolAnnotations({ readOnly: true, openWorld: true }),
+      _meta: healthMeta('lookup', { aliases: ['allergies', 'allergic', 'reactions'] }),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
@@ -48,6 +50,7 @@ export function registerRecordTools(
     {
       description: 'List the problem list (current health issues) recorded in MyAtriumHealth.',
       annotations: toolAnnotations({ readOnly: true, openWorld: true }),
+      _meta: healthMeta('lookup', { aliases: ['conditions', 'diagnoses', 'problem list'] }),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
@@ -73,6 +76,7 @@ export function registerRecordTools(
     {
       description: 'List immunizations and administration dates, grouped by organization.',
       annotations: toolAnnotations({ readOnly: true, openWorld: true }),
+      _meta: healthMeta('lookup', { aliases: ['shots', 'vaccines', 'vaccinations'] }),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
@@ -107,6 +111,7 @@ export function registerRecordTools(
       description:
         'List current medications: name, patient-friendly name, dosing instructions (sig) and prescriber.',
       annotations: toolAnnotations({ readOnly: true, openWorld: true }),
+      _meta: healthMeta('lookup', { aliases: ['meds', 'medicine', 'prescriptions', 'pills'] }),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
@@ -144,6 +149,7 @@ export function registerRecordTools(
         'List care team providers — name, specialty and relationship — from this ' +
         'organization and from linked outside organizations.',
       annotations: toolAnnotations({ readOnly: true, openWorld: true }),
+      _meta: healthMeta('lookup', { aliases: ['doctors', 'my doctor', 'providers', 'care team'] }),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
@@ -194,6 +200,7 @@ export function registerRecordTools(
     {
       description: 'List patient goals tracked in MyAtriumHealth.',
       annotations: toolAnnotations({ readOnly: true, openWorld: true }),
+      _meta: healthMeta('lookup'),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
