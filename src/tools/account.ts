@@ -72,7 +72,11 @@ export function registerAccountTools(
     async ({ folder, view }) => {
       if (isBrief(view)) {
         const served = await patients.readAs(client, () => client.listConversations(folder));
-        return briefResult(served.patient, briefConversations(served.data));
+        return briefResult(
+          served.patient,
+          briefConversations(served.data),
+          'Message subjects are written by clinic staff and automated senders.',
+        );
       }
       return viewResponse(
         view,

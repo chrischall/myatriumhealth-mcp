@@ -1,3 +1,4 @@
+import { UNTRUSTED_CONTENT_RULE, untrustedEnvelope } from '@chrischall/mcp-utils';
 import { z } from 'zod';
 import { MAH_VIEWS, viewArg } from './view.js';
 
@@ -5,8 +6,8 @@ import { MAH_VIEWS, viewArg } from './view.js';
  * The `brief` rung, offered only on the canonical reads a context group asks
  * (mah_list_messages, mah_list_upcoming_visits, mah_list_billing_accounts):
  * one text line per item, `title — <ISO date | no date> — <status>`, at most
- * 120 characters, the title shortened to fit, after a `-- patient: <label>`
- * note line naming whose chart was read.
+ * 120 characters cut as a whole (title first), after a `-- patient: <label>`
+ * note line naming whose chart was read, inside the untrusted-data envelope.
  *
  * It sits beside the fleet's compact/full rungs rather than inside
  * `viewParam`, whose vocabulary is the projection ladder; `brief` is a
@@ -46,25 +47,45 @@ export function isoDate(v: unknown): string {
   return 'no date';
 }
 
-/** `title — date — status`, shortened to 120 characters by trimming the title. */
+/** The shortest a title is cut to before the status gives way too. */
+const TITLE_FLOOR = 24;
+
+const cut = (s: string, n: number): string => (s.length > n ? `${s.slice(0, Math.max(n - 1, 0))}…` : s);
+
+/**
+ * `title — date — status`, cut to 120 characters as a WHOLE, title first: the
+ * title shortens until the line fits, and only once it is at its floor does
+ * the status give way too. A title that starts with `-- ` (which would read as
+ * a note) or `\` (which the gateway would strip) is escaped with one leading
+ * `\` — the fleet's brief-view contract.
+ */
 export function briefLine(title: string | undefined, date: string, status: string): string {
-  const tail = ` — ${date} — ${status}`;
-  const shown = title ?? '(untitled)';
-  const room = BRIEF_MAX - tail.length;
-  return `${shown.length > room ? `${shown.slice(0, Math.max(room - 1, 0))}…` : shown}${tail}`;
+  const raw = title ?? '(untitled)';
+  const shown = raw.startsWith('-- ') || raw.startsWith('\\') ? `\\${raw}` : raw;
+  const sep = ` — ${date} — `;
+  const room = BRIEF_MAX - sep.length;
+  if (shown.length + status.length <= room) return `${shown}${sep}${status}`;
+  const titleRoom = Math.max(room - status.length, Math.min(shown.length, TITLE_FLOOR));
+  const t = cut(shown, titleRoom);
+  return cut(`${t}${sep}${cut(status, Math.max(room - t.length, 1))}`, BRIEF_MAX);
 }
 
 /**
- * The answer a brief read returns: a leading `-- patient: <label>` note, then
- * the lines, newline-joined. A line starting with `-- ` is a note, not an item
- * (the fleet's brief-view contract), so the gateway does not count it. The
- * note is always there because a proxy login (a child's chart) reads as
- * another patient, and the other rungs carry `patient` beside the data — the
- * brief rung must not drop it.
+ * The answer a brief read returns: the fleet's untrusted-data envelope,
+ * minified, whose `data` is a leading `-- patient: <label>` note, then the
+ * lines — or a `-- none` note when there are none. Every line's title is text
+ * the health system or its staff wrote, never this server, so `whoWrote` names
+ * them and the envelope's rule follows. A line starting with `-- ` is a note,
+ * not an item (the fleet's brief-view contract), so the gateway does not count
+ * it. The patient note is always there because a proxy login (a child's chart)
+ * reads as another patient, and the other rungs carry `patient` beside the
+ * data — the brief rung must not drop it.
  */
-export function briefResult(patient: string, lines: string[]) {
+export function briefResult(patient: string, lines: string[], whoWrote: string) {
   const label = str(patient) ?? 'account holder';
-  return { content: [{ type: 'text' as const, text: [`-- patient: ${label}`, ...lines].join('\n') }] };
+  const data = [`-- patient: ${label}`, ...(lines.length === 0 ? ['-- none'] : lines)];
+  const payload = untrustedEnvelope(data, { note: `${whoWrote} ${UNTRUSTED_CONTENT_RULE}` });
+  return { content: [{ type: 'text' as const, text: JSON.stringify(payload) }] };
 }
 
 type Rec = Record<string, unknown>;
