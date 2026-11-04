@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.8...v1.4.0) (2026-11-04)
+
+
+### Features
+
+* context-group hints ([#132](https://github.com/chrischall/myatriumhealth-mcp/issues/132)) ([c91912a](https://github.com/chrischall/myatriumhealth-mcp/commit/c91912a16a79e9387fbb35b9cee9ca5ba76ce2c6))
+
+
+### Bug Fixes
+
+* **brief:** name the patient a brief answer was read as ([#134](https://github.com/chrischall/myatriumhealth-mcp/issues/134)) ([f8424f5](https://github.com/chrischall/myatriumhealth-mcp/commit/f8424f5983f41b7407faed075c084d5471828fd5))
+* **deps:** bump the production-dependencies group with 3 updates ([#128](https://github.com/chrischall/myatriumhealth-mcp/issues/128)) ([9d9cfdd](https://github.com/chrischall/myatriumhealth-mcp/commit/9d9cfdd812b1c2d66b472e4f8f0ffd3e4d406479))
+* **deps:** bump the production-dependencies group with 4 updates ([#131](https://github.com/chrischall/myatriumhealth-mcp/issues/131)) ([c822f00](https://github.com/chrischall/myatriumhealth-mcp/commit/c822f009b4d7858aed353fcaa1f4d5fe5378358c))
+
 ## [1.3.8](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.3.7...v1.3.8) (2026-10-20)
 
 
