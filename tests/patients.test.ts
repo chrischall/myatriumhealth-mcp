@@ -13,7 +13,7 @@ const subject = (name: string, wpr: string, login: boolean): string => `
     ${login ? '{type:"MYCHARTLOGIN",value:"WP-24ddd"},' : ''}
     {type:"WPRINTERNAL",value:"${wpr}"}]});`;
 
-const page = subject('Chris', 'WP-24holder', true) + subject('Finn', 'WP-24child', false);
+const page = subject('Alex', 'WP-24holder', true) + subject('Jamie', 'WP-24child', false);
 
 describe('patient discovery', () => {
   it('is not fooled by a brace inside a quoted value', () => {
@@ -24,15 +24,15 @@ describe('patient discovery', () => {
     // be free of punctuation.
     const awkward =
       'EpicPx.ReactContext.personalizations.proxySubjects.push({proxyColor:1,' +
-      'displayName:"Bracey}",photoMagicId:"",ids:[' +
+      'displayName:"Robin}",photoMagicId:"",ids:[' +
       '{type:"C",value:"WP-24aaa"},{type:"WPRINTERNAL",value:"WP-24kid"}]});';
     const [only] = parseProxySubjects(awkward);
-    expect(only.displayName).toBe('Bracey}');
+    expect(only.displayName).toBe('Robin}');
     expect(only.id).toBe('WP-24kid');
   });
 
   it('finds every subject the switcher offers', () => {
-    expect(parseProxySubjects(page).map((p) => p.displayName)).toEqual(['Chris', 'Finn']);
+    expect(parseProxySubjects(page).map((p) => p.displayName)).toEqual(['Alex', 'Jamie']);
   });
 
   it('uses WPRINTERNAL as the id, because it is the only one the switcher honours', () => {
@@ -63,7 +63,7 @@ describe('patient discovery', () => {
 describe('the default patient', () => {
   const holderPage = page;
 
-  function fakeClient(serving = 'Chris') {
+  function fakeClient(serving = 'Alex') {
     const calls: string[] = [];
     return {
       calls,
@@ -85,10 +85,10 @@ describe('the default patient', () => {
     process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-default-${Date.now()}.json`;
     const { PatientContext } = await import('../src/patient-context.js');
     const ctx = new PatientContext();
-    const client = fakeClient('Chris');
+    const client = fakeClient('Alex');
 
     expect(ctx.isDefault()).toBe(true);
-    await expect(ctx.ensure(client as never)).resolves.toBe('Chris');
+    await expect(ctx.ensure(client as never)).resolves.toBe('Alex');
     expect(client.calls.some((c) => c.includes('SwitchContext'))).toBe(false);
   });
 });
@@ -105,7 +105,7 @@ describe('re-assertion after a silent re-login', () => {
       page: async (p: string) => {
         calls.push(p);
         if (p.startsWith('ProxySwitch/SwitchContext')) {
-          state.name = 'Finn';
+          state.name = 'Jamie';
           state.age = 7;
         }
         return page;
@@ -125,22 +125,22 @@ describe('re-assertion after a silent re-login', () => {
     process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-reauth-${Date.now()}.json`;
     const { PatientContext } = await import('../src/patient-context.js');
     const ctx = new PatientContext(true);
-    const client = clientServing('Chris', 45);
+    const client = clientServing('Alex', 45);
 
     await ctx.select(client as never, {
       id: 'WP-24child',
-      displayName: 'Finn',
+      displayName: 'Jamie',
       isAccountHolder: false,
       relationship: 'proxy',
     });
-    expect(await ctx.ensure(client as never)).toBe('Finn');
+    expect(await ctx.ensure(client as never)).toBe('Jamie');
 
     // The portal silently reverts, exactly as a re-login does.
-    client.state.name = 'Chris';
+    client.state.name = 'Alex';
     client.state.age = 45;
     ctx.invalidate();
 
-    expect(await ctx.ensure(client as never)).toBe('Finn');
+    expect(await ctx.ensure(client as never)).toBe('Jamie');
     expect(client.calls.filter((c) => c.startsWith('ProxySwitch/SwitchContext')).length)
       .toBeGreaterThan(1);
   });
@@ -156,11 +156,11 @@ describe('a sign-in that happens DURING a read', () => {
     const { PatientContext } = await import('../src/patient-context.js');
     const ctx = new PatientContext(true);
 
-    const state = { name: 'Chris', age: 45 as number | null };
+    const state = { name: 'Alex', age: 45 as number | null };
     const client = {
       page: async (p: string) => {
         if (p.startsWith('ProxySwitch/SwitchContext')) {
-          state.name = 'Finn';
+          state.name = 'Jamie';
           state.age = 7;
         }
         return page;
@@ -169,7 +169,7 @@ describe('a sign-in that happens DURING a read', () => {
     };
 
     await ctx.select(client as never, {
-      id: 'WP-24child', displayName: 'Finn', isAccountHolder: false, relationship: 'proxy',
+      id: 'WP-24child', displayName: 'Jamie', isAccountHolder: false, relationship: 'proxy',
     });
 
     let reads = 0;
@@ -177,7 +177,7 @@ describe('a sign-in that happens DURING a read', () => {
       reads++;
       if (reads === 1) {
         // The read triggers a re-login: portal silently reverts, session changes.
-        state.name = 'Chris';
+        state.name = 'Alex';
         state.age = 45;
         ctx.invalidate();
         return 'account-holder-data';
@@ -185,8 +185,8 @@ describe('a sign-in that happens DURING a read', () => {
       return 'proxy-data';
     });
 
-    // It must NOT return the first read labelled "Finn".
-    expect(result).toEqual({ patient: 'Finn', data: 'proxy-data' });
+    // It must NOT return the first read labelled "Jamie".
+    expect(result).toEqual({ patient: 'Jamie', data: 'proxy-data' });
     expect(reads).toBe(2);
   });
 
@@ -194,16 +194,16 @@ describe('a sign-in that happens DURING a read', () => {
     process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-thrash-${Date.now()}.json`;
     const { PatientContext } = await import('../src/patient-context.js');
     const ctx = new PatientContext();
-    const state = { name: 'Chris', age: 45 as number | null };
+    const state = { name: 'Alex', age: 45 as number | null };
     const client = {
       page: async (p: string) => {
-        if (p.startsWith('ProxySwitch/SwitchContext')) { state.name = 'Finn'; state.age = 7; }
+        if (p.startsWith('ProxySwitch/SwitchContext')) { state.name = 'Jamie'; state.age = 7; }
         return page;
       },
       api: async () => ({ patientFirstName: state.name, header: { patientAge: state.age } }),
     };
     await ctx.select(client as never, {
-      id: 'WP-24child', displayName: 'Finn', isAccountHolder: false, relationship: 'proxy',
+      id: 'WP-24child', displayName: 'Jamie', isAccountHolder: false, relationship: 'proxy',
     });
 
     await expect(
@@ -223,7 +223,7 @@ describe('caching is only allowed where invalidation is possible', () => {
       state,
       get confirmations() { return confirmations; },
       page: async (p: string) => {
-        if (p.startsWith('ProxySwitch/SwitchContext')) { state.name = 'Finn'; state.age = 7; }
+        if (p.startsWith('ProxySwitch/SwitchContext')) { state.name = 'Jamie'; state.age = 7; }
         return page;
       },
       api: async () => {
@@ -241,7 +241,7 @@ describe('caching is only allowed where invalidation is possible', () => {
     process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-bridge-${Date.now()}.json`;
     const { PatientContext } = await import('../src/patient-context.js');
     const ctx = new PatientContext(false);
-    const client = probe('Chris');
+    const client = probe('Alex');
 
     await ctx.ensure(client as never);
     const afterFirst = client.confirmations;
@@ -255,7 +255,7 @@ describe('caching is only allowed where invalidation is possible', () => {
     process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-cached-${Date.now()}.json`;
     const { PatientContext } = await import('../src/patient-context.js');
     const ctx = new PatientContext(true);
-    const client = probe('Chris');
+    const client = probe('Alex');
 
     await ctx.ensure(client as never);
     const afterFirst = client.confirmations;
@@ -285,17 +285,17 @@ describe('a patient switch racing a read or a write', () => {
   // state inside the portal session. A switch that lands while a read is in
   // flight hands back the new patient's chart under the old patient's name.
   function switchingClient() {
-    const state = { name: 'Chris', age: 45 as number | null };
+    const state = { name: 'Alex', age: 45 as number | null };
     return {
       state,
       page: async (p: string) => {
-        if (p.startsWith('ProxySwitch/SwitchContext')) { state.name = 'Finn'; state.age = 7; }
+        if (p.startsWith('ProxySwitch/SwitchContext')) { state.name = 'Jamie'; state.age = 7; }
         return page;
       },
       api: async () => ({ patientFirstName: state.name, header: { patientAge: state.age } }),
     };
   }
-  const finn = { id: 'WP-24child', displayName: 'Finn', isAccountHolder: false, relationship: 'proxy' as const };
+  const jamie = { id: 'WP-24child', displayName: 'Jamie', isAccountHolder: false, relationship: 'proxy' as const };
   const tick = () => new Promise((r) => setTimeout(r, 10));
 
   it('never labels a read with a patient the session left mid-read', async () => {
@@ -308,7 +308,7 @@ describe('a patient switch racing a read or a write', () => {
       await tick();
       return client.state.name;
     });
-    const sel = ctx.select(client as never, finn);
+    const sel = ctx.select(client as never, jamie);
     const [r] = await Promise.all([read, sel]);
     expect(r.data).toBe(r.patient);
   });
@@ -324,7 +324,7 @@ describe('a patient switch racing a read or a write', () => {
       assertUnchanged();
       return { confirmedAs: patient, sentAs: client.state.name };
     });
-    const sel = ctx.select(client as never, finn);
+    const sel = ctx.select(client as never, jamie);
     const [w] = await Promise.all([write, sel]);
     expect(w.sentAs).toBe(w.confirmedAs);
   });
@@ -356,29 +356,29 @@ describe('through the browser bridge the session is the user\'s own tab', () => 
   // they do next in that page would apply to the wrong person.
   function tab() {
     const calls: string[] = [];
-    const state = { name: 'Chris', age: 45 as number | null };
+    const state = { name: 'Alex', age: 45 as number | null };
     return {
       calls,
       state,
       page: async (p: string) => {
         calls.push(p);
-        if (p.startsWith('ProxySwitch/SwitchContext')) { state.name = 'Finn'; state.age = 7; }
+        if (p.startsWith('ProxySwitch/SwitchContext')) { state.name = 'Jamie'; state.age = 7; }
         return page;
       },
       api: async () => ({ patientFirstName: state.name, header: { patientAge: state.age } }),
     };
   }
-  const finn = { id: 'WP-24child', displayName: 'Finn', isAccountHolder: false, relationship: 'proxy' as const };
+  const jamie = { id: 'WP-24child', displayName: 'Jamie', isAccountHolder: false, relationship: 'proxy' as const };
 
   it('refuses a read rather than switching the tab back to the selected patient', async () => {
     process.env.MAH_PATIENT_FILE = `/tmp/mah-patient-bridge-noswitch-${Date.now()}.json`;
     const { PatientContext } = await import('../src/patient-context.js');
     const ctx = new PatientContext(false);
     const client = tab();
-    await ctx.select(client as never, finn);
+    await ctx.select(client as never, jamie);
 
     // The user goes back to their own chart in the browser.
-    client.state.name = 'Chris';
+    client.state.name = 'Alex';
     client.state.age = 45;
     const switchesBefore = client.calls.filter((c) => c.startsWith('ProxySwitch')).length;
 
@@ -388,7 +388,7 @@ describe('through the browser bridge the session is the user\'s own tab', () => 
         read = true;
         return 'data';
       }),
-    ).rejects.toThrow(/Chris.*Finn|Finn.*Chris/);
+    ).rejects.toThrow(/Alex.*Jamie|Jamie.*Alex/);
     expect(read).toBe(false);
     expect(client.calls.filter((c) => c.startsWith('ProxySwitch')).length).toBe(switchesBefore);
   });
@@ -398,9 +398,9 @@ describe('through the browser bridge the session is the user\'s own tab', () => 
     const { PatientContext } = await import('../src/patient-context.js');
     const ctx = new PatientContext(false);
     const client = tab();
-    await ctx.select(client as never, finn);
+    await ctx.select(client as never, jamie);
     await expect(ctx.readAs(client as never, async () => 'data')).resolves.toEqual({
-      patient: 'Finn',
+      patient: 'Jamie',
       data: 'data',
     });
   });
@@ -410,12 +410,12 @@ describe('through the browser bridge the session is the user\'s own tab', () => 
     const { PatientContext } = await import('../src/patient-context.js');
     const ctx = new PatientContext(true);
     const client = tab();
-    await ctx.select(client as never, finn);
-    client.state.name = 'Chris';
+    await ctx.select(client as never, jamie);
+    client.state.name = 'Alex';
     client.state.age = 45;
     ctx.invalidate();
     await expect(ctx.readAs(client as never, async () => 'data')).resolves.toEqual({
-      patient: 'Finn',
+      patient: 'Jamie',
       data: 'data',
     });
   });
