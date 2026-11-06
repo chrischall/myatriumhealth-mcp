@@ -99,7 +99,11 @@
     },
     {
       "name": "mah_reply_message",
-      "description": "Reply to a Message Center conversation as the active patient. Irreversible and provider-visible; asks the user to confirm first (a prompt where the client supports one, otherwise a preview and a confirmToken). Refused when MAH_READ_ONLY is set."
+      "description": "Reply to a Message Center conversation as the active patient, optionally with files (base64 attachments, or blobKeys from mah_upload_slots on a hosted deployment). Irreversible and provider-visible; asks the user to confirm first (a prompt where the client supports one, otherwise a preview and a confirmToken). Refused when MAH_READ_ONLY is set."
+    },
+    {
+      "name": "mah_upload_slots",
+      "description": "Hosted deployments: signed upload URLs for files to attach to a mah_reply_message reply, so large files (photos, scans) never ride inside a tool call. Sends nothing."
     },
     {
       "name": "mah_list_past_visits",

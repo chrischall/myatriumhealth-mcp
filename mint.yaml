@@ -144,3 +144,8 @@ egress:
   # host is reached through the user's tab. No other host appears as a fetch base.
   allow:
     - my.atriumhealth.org
+  # Not listed: mcp-host's own blob store (MCP_BLOB_BASE_URL, the gateway serving
+  # this connector — its host differs per deployment). The server signs PUT URLs
+  # there for mah_upload_slots, and GETs + DELETEs the files the caller uploaded
+  # when mah_reply_message attaches them. Signed requests only; no portal
+  # credential is ever sent.

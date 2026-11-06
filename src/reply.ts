@@ -13,6 +13,16 @@ import { parse } from 'node-html-parser';
 import type { MyAtriumHealthClient } from './client.js';
 import type { PatientContext } from './patient-context.js';
 import { NotAcceptedError } from './transport.js';
+import { checkUploadSize, decodeBase64Strict, type BlobStore } from '@chrischall/mcp-utils/export';
+import {
+  asToolError,
+  BRIDGE_REASON,
+  extensionOf,
+  fileNameFromBlobKey,
+  MIME,
+  releaseBlobs,
+  requireBlobStore,
+} from './uploads.js';
 
 export interface ReplyAttachment {
   filename: string;
@@ -23,6 +33,8 @@ export interface ReplyInput {
   conversationId: string;
   body: string;
   attachments?: ReplyAttachment[];
+  /** Hosted: keys of files the caller PUT into slots from mah_upload_slots. */
+  blobKeys?: string[];
   /** From the phase-1 preview of this exact reply, once the user approved it. */
   confirmToken?: string;
 }
@@ -64,27 +76,6 @@ interface ComposeSettings {
   };
 }
 
-/** Media types for the extensions the portal accepts. */
-const MIME: Record<string, string> = {
-  BMP: 'image/bmp',
-  DOC: 'application/msword',
-  DOCX: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  JPEG: 'image/jpeg',
-  JPG: 'image/jpeg',
-  PDF: 'application/pdf',
-  PNG: 'image/png',
-  TIF: 'image/tiff',
-  TIFF: 'image/tiff',
-  '3GP': 'video/3gpp',
-  '3GPP': 'video/3gpp',
-  AVI: 'video/x-msvideo',
-  MOV: 'video/quicktime',
-  MP4: 'video/mp4',
-  MPEG: 'video/mpeg',
-  MPG: 'video/mpeg',
-  WMV: 'video/x-ms-wmv',
-};
-
 /** The composer's own split: every line break starts a new paragraph. */
 export function toParagraphs(body: string): string[] {
   return body.split(/\r\n|[\r\n]/);
@@ -106,7 +97,16 @@ interface PreparedFile {
   filename: string;
   mimeType: string;
   bytes: Uint8Array<ArrayBuffer>;
+  /** Of the bytes — what the confirmation binds, whichever way the file came. */
+  sha256: string;
+  /** Set when the file was read from the upload store; deleted once sent. */
+  blobKey?: string;
 }
+
+/** One requested attachment, before its bytes are read. */
+type AttachmentSource =
+  | { filename: string; contentBase64: string; blobKey?: undefined }
+  | { filename: string; blobKey: string; contentBase64?: undefined };
 
 /**
  * A limit from GetComposeSettings. Missing means the answer could not be read —
@@ -119,8 +119,16 @@ function limit(value: number | undefined, what: string): number {
   });
 }
 
-/** Decode and check every attachment against the portal's own limits. */
-function prepareAttachments(files: ReplyAttachment[], settings: ComposeSettings): PreparedFile[] {
+/**
+ * Check every attachment against the portal's own limits, then read it —
+ * base64 strictly, a blob from the upload store. Count and type are checked
+ * for ALL files before any blob is read, so a bad entry costs no download.
+ */
+async function prepareAttachments(
+  files: AttachmentSource[],
+  settings: ComposeSettings,
+  store: BlobStore | undefined,
+): Promise<PreparedFile[]> {
   if (files.length === 0) return [];
   const a = settings.attachmentSettings ?? {};
   if (a.canAttach !== true) {
@@ -128,10 +136,13 @@ function prepareAttachments(files: ReplyAttachment[], settings: ComposeSettings)
   }
   const max = limit(a.maxNumberOfAttachments, 'attachment count limit');
   if (files.length > max) {
-    throw new McpToolError(`MyAtriumHealth allows at most ${max} attachments per message.`);
+    throw new McpToolError(
+      `MyAtriumHealth allows at most ${max} attachments per message (got ${files.length}, ` +
+        'counting attachments and blobKeys together).',
+    );
   }
-  return files.map((f) => {
-    const ext = /\.([^.]+)$/.exec(f.filename)?.[1]?.toUpperCase() ?? '';
+  const planned = files.map((f) => {
+    const ext = extensionOf(f.filename);
     const kind = a.docAndImageSettings?.allowedFileExtensions?.includes(ext)
       ? a.docAndImageSettings
       : a.videoSettings?.allowedFileExtensions?.includes(ext)
@@ -146,24 +157,57 @@ function prepareAttachments(files: ReplyAttachment[], settings: ComposeSettings)
         hint: `Accepted: ${allowed.join(', ')}.`,
       });
     }
-    if (!/^[A-Za-z0-9+/\s]*={0,2}\s*$/.test(f.contentBase64)) {
-      throw new McpToolError(`${f.filename}: contentBase64 is not valid base64.`);
-    }
-    const bytes = new Uint8Array(Buffer.from(f.contentBase64, 'base64'));
-    if (bytes.length === 0) throw new McpToolError(`${f.filename} is empty.`);
     // The portal states its limits in KB.
-    const maxKb = limit(kind.maxFileSize, 'file size limit');
-    if (bytes.length > maxKb * 1024) {
-      throw new McpToolError(
-        `${f.filename} is too large: ${bytes.length} bytes, over the portal limit of ${maxKb} KB.`,
-      );
-    }
-    return { filename: f.filename, mimeType: MIME[ext] as string, bytes };
+    return { f, mimeType: MIME[ext] as string, maxBytes: limit(kind.maxFileSize, 'file size limit') * 1024 };
   });
+  const out: PreparedFile[] = [];
+  for (const { f, mimeType, maxBytes } of planned) {
+    let bytes: Uint8Array;
+    if (f.blobKey !== undefined) {
+      try {
+        // Capped at the portal's limit, so an oversized upload is refused
+        // without downloading all of it.
+        bytes = (await store!.get(f.blobKey, { maxBytes })).bytes;
+      } catch (e) {
+        // ResponseTooLargeError is not exported from the package root; its name is set explicitly.
+        if ((e as Error).name === 'ResponseTooLargeError') {
+          throw new McpToolError(
+            `${f.filename} is too large: over the portal limit of ${maxBytes / 1024} KB.`,
+          );
+        }
+        throw new McpToolError(`${f.filename} could not be read from the upload store (${(e as Error).message}).`, {
+          hint:
+            'PUT the file to its slot first. A slot expires, and a file is deleted once a reply ' +
+            'carrying it is sent — mint a fresh one with mah_upload_slots.',
+        });
+      }
+      asToolError(() => checkUploadSize(f.filename, bytes.length, maxBytes));
+    } else {
+      const content = f.contentBase64;
+      bytes = asToolError(() => decodeBase64Strict(content, { fileName: f.filename, maxBytes }));
+    }
+    const owned = new Uint8Array(bytes);
+    out.push({
+      filename: f.filename,
+      mimeType,
+      bytes: owned,
+      sha256: createHash('sha256').update(owned).digest('hex'),
+      ...(f.blobKey !== undefined ? { blobKey: f.blobKey } : {}),
+    });
+  }
+  return out;
 }
 
 /** Everything the send needs, established before anything is sent. */
 async function prepare(client: MyAtriumHealthClient, input: ReplyInput) {
+  // Blob keys are checked before the portal is asked anything: a key that is
+  // not an upload slot's, or a deployment with no store, is the caller's to fix.
+  const blobKeys = input.blobKeys ?? [];
+  const sources: AttachmentSource[] = [
+    ...(input.attachments ?? []).map((f) => ({ filename: f.filename, contentBase64: f.contentBase64 })),
+    ...blobKeys.map((blobKey) => ({ filename: fileNameFromBlobKey(blobKey), blobKey })),
+  ];
+  const store = blobKeys.length > 0 ? requireBlobStore('blobKeys') : undefined;
   const details = (await client.conversationDetails(input.conversationId)) as Details;
   if (details?.hthId !== input.conversationId) {
     throw new McpToolError(`No conversation ${input.conversationId} for the current patient.`, {
@@ -203,7 +247,7 @@ async function prepare(client: MyAtriumHealthClient, input: ReplyInput) {
       { hint: 'Shorten it, or split it across more than one reply.' },
     );
   }
-  const files = prepareAttachments(input.attachments ?? [], settings);
+  const files = await prepareAttachments(sources, settings, store);
   const recipients = (details.userKeys ?? [])
     .map((k) => details.users?.[k]?.name)
     .filter((n): n is string => typeof n === 'string' && n !== '');
@@ -214,6 +258,7 @@ async function prepare(client: MyAtriumHealthClient, input: ReplyInput) {
     paragraphs: toParagraphs(input.body),
     files,
     recipients,
+    store,
   };
 }
 
@@ -228,17 +273,22 @@ const ASK_USER_INSTRUCTION =
   'again with the same arguments plus confirmToken.';
 
 /** What the gate binds: exactly what the preview showed, attachments by content. */
-function sendPayload(patient: string, input: ReplyInput, recipients: string[], subject: string | undefined) {
+function sendPayload(
+  patient: string,
+  input: ReplyInput,
+  recipients: string[],
+  subject: string | undefined,
+  files: PreparedFile[],
+) {
   return {
     patient,
     conversationId: input.conversationId,
     subject,
     recipients,
     body: input.body,
-    attachments: (input.attachments ?? []).map((a) => ({
-      filename: a.filename,
-      sha256: createHash('sha256').update(a.contentBase64).digest('hex'),
-    })),
+    // By the bytes actually read, so a blob replaced in the store after the
+    // preview no longer matches the approval and is refused.
+    attachments: files.map((f) => ({ filename: f.filename, sha256: f.sha256 })),
   };
 }
 
@@ -276,9 +326,7 @@ export async function replyToConversation(
     const readOnlyReason =
       'MAH_READ_ONLY is set on this server, so replies are refused. Unset it (or set it to ' +
       'false) and restart to allow sending.';
-    const bridgeReason =
-      'Attachments need the credential transport: this server relays through the browser ' +
-      'bridge, which cannot carry a file upload.';
+    const bridgeReason = BRIDGE_REASON;
     const blocked = opts.readOnly
       ? readOnlyReason
       : p.files.length > 0 && !opts.attachmentsSupported
@@ -316,7 +364,7 @@ export async function replyToConversation(
       instruction: ASK_USER_INSTRUCTION,
       subject: () => ({
         target: input.conversationId,
-        payload: sendPayload(patient, input, p.recipients, p.details.subject),
+        payload: sendPayload(patient, input, p.recipients, p.details.subject, p.files),
         preview: summary,
       }),
     }));
@@ -407,10 +455,15 @@ export async function replyToConversation(
       });
     }
     if (!echoed) await client.api('conversations/RemoveComposeId', { composeId }).catch(() => {});
+    // Sent, so the uploaded copies have done their job. Only now: a reply that
+    // failed (or may have) keeps them, so a retry needs no fresh upload.
+    const fromStore = p.files.filter((f): f is PreparedFile & { blobKey: string } => f.blobKey !== undefined);
+    const uploadStore = fromStore.length > 0 ? await releaseBlobs(p.store!, fromStore) : undefined;
     return {
       sent: true,
       verified: message !== undefined,
       ...summary,
+      ...(uploadStore !== undefined ? { uploadStore } : {}),
       ...(message !== undefined
         ? {
             message: {
