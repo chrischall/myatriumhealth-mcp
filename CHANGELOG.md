@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.4.1...v1.5.0) (2026-11-06)
+
+
+### Features
+
+* **messages:** attach files from hosted sessions through upload slots ([#141](https://github.com/chrischall/myatriumhealth-mcp/issues/141)) ([e2520dd](https://github.com/chrischall/myatriumhealth-mcp/commit/e2520dd209d853b95251e7db2e31c23b0d1f2131))
+
+
+### Bug Fixes
+
+* **deps:** bump the production-dependencies group with 2 updates ([#139](https://github.com/chrischall/myatriumhealth-mcp/issues/139)) ([f8bcf1f](https://github.com/chrischall/myatriumhealth-mcp/commit/f8bcf1fb185cd93d012dac8c311613b9ec9b01f9))
+
 ## [1.4.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.4.0...v1.4.1) (2026-11-04)
 
 
