@@ -77,6 +77,7 @@ describe('tool roster', () => {
       'mah_send_verification_code',
       'mah_set_active_patient',
       'mah_sign_in',
+      'mah_upload_slots',
       'mah_verify_code',
     ]);
   });

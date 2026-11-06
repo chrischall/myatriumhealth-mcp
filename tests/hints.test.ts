@@ -163,6 +163,7 @@ const EXPECTED_INTENT: Record<string, string> = {
   mah_list_upcoming_visits: 'whats-on',
   mah_reply_message: 'send',
   mah_set_active_patient: 'change',
+  mah_upload_slots: 'send',
 };
 
 const CANONICAL = ['mah_list_billing_accounts', 'mah_list_messages', 'mah_list_upcoming_visits'];

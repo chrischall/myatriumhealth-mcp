@@ -55,7 +55,7 @@ async function servedTools() {
 
 describe('tool annotations', () => {
   it('covers the full served surface', async () => {
-    expect(await servedTools()).toHaveLength(23);
+    expect(await servedTools()).toHaveLength(24);
   });
 
   it('sets an explicit boolean destructiveHint on every write', async () => {
@@ -72,6 +72,8 @@ describe('tool annotations', () => {
     expect(contradictory).toEqual([]);
   });
 
+  // mah_upload_slots touches no portal endpoint, but it hands out URLs into the
+  // host's upload store, an outside system the caller writes to.
   it('marks every tool open-world (each one reaches the portal, directly or through the bridge)', async () => {
     const notOpen = (await servedTools())
       .filter((t) => t.annotations?.openWorldHint !== true)

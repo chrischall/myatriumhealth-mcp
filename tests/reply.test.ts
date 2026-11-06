@@ -162,8 +162,12 @@ function tool(p: Portal, opts: { readOnly?: boolean; attachmentsSupported?: bool
   });
   const h = handlers.get('mah_reply_message')!;
   const parse = (r: Result) => JSON.parse(r.content[0]!.text) as Record<string, unknown>;
+  const s = handlers.get('mah_upload_slots')!;
   return {
     def: h.def,
+    slotsDef: s.def,
+    /** mah_upload_slots, parsed. */
+    slots: async (args: Record<string, unknown>) => parse(await s.fn(args, ctx())),
     patients,
     /**
      * Calls the tool the way an approved send happens on a client that cannot
@@ -682,5 +686,324 @@ describe('mah_reply_message — a confirmToken authorizes one send', () => {
     expect(a.confirmToken).not.toBe(b.confirmToken);
     expect((await t.raw({ conversationId: HTH, body: BODY, confirmToken: a.confirmToken })).sent).toBe(true);
     expect((await t.raw({ conversationId: HTH, body: BODY, confirmToken: b.confirmToken })).sent).toBe(true);
+  });
+});
+
+// ── Hosted uploads: signed slots + blobKeys ──────────────────────────────
+// On mcp-host the caller shares no filesystem with this server, and base64
+// rides inside one capped JSON-RPC request. So the caller PUTs each file to a
+// signed slot and names it by blobKey. The blob store is a fake behind a
+// stubbed global fetch (the portal transport is separate, so it never sees it).
+
+const BLOB_BASE = 'https://host.example/b/reg_0123456789abcdef01234567';
+/** A placeholder reply; the fake portal echoes it back as the sent message. */
+const NEUTRAL = 'Please see the attached file.';
+const PDF_BYTES = Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n');
+
+interface FakeBlobs {
+  objects: Map<string, { bytes: Buffer; type: string }>;
+  calls: Array<{ method: string; key: string }>;
+  failDelete?: boolean;
+}
+
+function fakeBlobs(): FakeBlobs {
+  vi.stubEnv('MCP_BLOB_BASE_URL', BLOB_BASE);
+  vi.stubEnv('MCP_BLOB_SIGNING_KEY', 'a2V5');
+  const state: FakeBlobs = { objects: new Map(), calls: [] };
+  vi.stubGlobal('fetch', vi.fn(async (input: string | URL, init?: RequestInit) => {
+    const url = new URL(String(input));
+    const key = decodeURIComponent(url.pathname.replace('/b/reg_0123456789abcdef01234567/', ''));
+    const method = init?.method ?? 'GET';
+    state.calls.push({ method, key });
+    if (method === 'DELETE') {
+      if (state.failDelete) return new Response('boom', { status: 500 });
+      state.objects.delete(key);
+      return new Response(null, { status: 204 });
+    }
+    const obj = state.objects.get(key);
+    if (!obj) return new Response('{"error":"not found"}', { status: 404 });
+    return new Response(new Uint8Array(obj.bytes), { status: 200, headers: { 'content-type': obj.type } });
+  }));
+  return state;
+}
+
+/** What the caller's curl does: PUT the bytes into the slot. */
+const putInto = (blobs: FakeBlobs, slot: { blobKey: string; mimeType: string }, bytes: Buffer): void => {
+  blobs.objects.set(slot.blobKey, { bytes, type: slot.mimeType });
+};
+
+/** A key in exactly the shape a slot mints, for a name no slot would accept. */
+const keyFor = (filename: string): string =>
+  `uploads/0f0e0d0c-0b0a-4908-8706-050403020100/${Buffer.from(filename, 'utf8').toString('base64url')}`;
+
+const deletes = (blobs: FakeBlobs): string[] => blobs.calls.filter((c) => c.method === 'DELETE').map((c) => c.key);
+
+describe('hosted uploads', () => {
+  beforeEach(() => {
+    vi.stubEnv('MCP_BLOB_BASE_URL', '');
+    vi.stubEnv('MCP_BLOB_SIGNING_KEY', '');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  /** Mint a slot for `filename` and PUT `bytes` into it, as a caller would. */
+  async function uploaded(t: ReturnType<typeof tool>, blobs: FakeBlobs, filename: string, bytes: Buffer = PDF_BYTES) {
+    const out = await t.slots({ files: [{ filename }] });
+    const slot = (out.slots as Array<{ blobKey: string; mimeType: string }>)[0]!;
+    putInto(blobs, slot, bytes);
+    return slot.blobKey;
+  }
+
+  describe('mah_upload_slots', () => {
+    it('is annotated read-only and points at mah_reply_message', () => {
+      const t = tool(portal());
+      expect(t.slotsDef.annotations).toMatchObject({ readOnlyHint: true });
+      expect(t.slotsDef.description).toMatch(/mah_reply_message/);
+      expect(t.slotsDef.description).toMatch(/blobKeys/);
+    });
+
+    it('mints a signed PUT slot per file, with the next step, and touches nothing on the portal', async () => {
+      const blobs = fakeBlobs();
+      const p = portal();
+      const out = await tool(p).slots({ files: [{ filename: 'scan.pdf' }, { filename: 'photo one.jpg' }] });
+      const slots = out.slots as Array<Record<string, string>>;
+      expect(slots).toHaveLength(2);
+      expect(slots[0]).toMatchObject({ filename: 'scan.pdf', mimeType: 'application/pdf', method: 'PUT' });
+      expect(slots[1]).toMatchObject({ filename: 'photo one.jpg', mimeType: 'image/jpeg' });
+      expect(slots[0]!.blobKey).toMatch(/^uploads\/[0-9a-f-]{36}\/[A-Za-z0-9_-]+$/);
+      expect(slots[0]!.uploadUrl.startsWith(BLOB_BASE)).toBe(true);
+      expect(slots[0]!.curl).toContain("Content-Type: application/pdf");
+      expect(out.blobKeys).toEqual(slots.map((s) => s.blobKey));
+      expect(String(out.next)).toMatch(/mah_reply_message/);
+      expect(String(out.next)).toMatch(/blobKeys/);
+      expect(p.calls).toEqual([]);
+      expect(blobs.calls).toEqual([]);
+    });
+
+    it('types a portal format the generic table does not know from the portal\'s own list', async () => {
+      fakeBlobs();
+      const out = await tool(portal()).slots({ files: [{ filename: 'clip.wmv' }] });
+      expect((out.slots as Array<Record<string, string>>)[0]!.mimeType).toBe('video/x-ms-wmv');
+    });
+
+    it('refuses without a blob store, saying base64 attachments still work', async () => {
+      await expect(tool(portal()).slots({ files: [{ filename: 'scan.pdf' }] })).rejects.toThrow(
+        /blob store[\s\S]*attachments/i,
+      );
+    });
+
+    it('refuses a file type the portal never accepts', async () => {
+      fakeBlobs();
+      await expect(tool(portal()).slots({ files: [{ filename: 'run.exe' }] })).rejects.toThrow(/EXE/);
+    });
+
+    it('refuses a path or hidden file as a filename', async () => {
+      fakeBlobs();
+      await expect(tool(portal()).slots({ files: [{ filename: 'dir/scan.pdf' }] })).rejects.toThrow(/bare filename/);
+      await expect(tool(portal()).slots({ files: [{ filename: '.scan.pdf' }] })).rejects.toThrow(/dot/);
+    });
+
+    it('refuses more than 10 files', async () => {
+      fakeBlobs();
+      const files = Array.from({ length: 11 }, (_, i) => ({ filename: `f${i}.pdf` }));
+      await expect(tool(portal()).slots({ files })).rejects.toThrow(/10/);
+    });
+
+    it('refuses when attachments cannot be sent at all (browser bridge)', async () => {
+      fakeBlobs();
+      await expect(
+        tool(portal(), { attachmentsSupported: false }).slots({ files: [{ filename: 'scan.pdf' }] }),
+      ).rejects.toThrow(/bridge/i);
+    });
+  });
+
+  describe('mah_reply_message with blobKeys', () => {
+    it('the preview reads each blob, binds it, and neither deletes nor sends', async () => {
+      const blobs = fakeBlobs();
+      const p = portal();
+      const t = tool(p);
+      const key = await uploaded(t, blobs, 'scan.pdf');
+      const out = await t.raw({ conversationId: HTH, body: 'see attached', blobKeys: [key] });
+      expect(typeof out.confirmToken).toBe('string');
+      expect(JSON.stringify(out)).toContain('scan.pdf');
+      expect(blobs.calls).toEqual([{ method: 'GET', key }]);
+      expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+      expect(blobs.objects.has(key)).toBe(true);
+    });
+
+    it('the confirmed send uploads the blob\'s bytes, attaches it, and deletes it only after SendReply', async () => {
+      const blobs = fakeBlobs();
+      const p = portal({ newBodyLines: [NEUTRAL] });
+      const t = tool(p);
+      const key = await uploaded(t, blobs, 'scan.pdf');
+      let deletesAtSend: string[] | undefined;
+      p.on['SendReply'] = () => {
+        deletesAtSend = deletes(blobs);
+      };
+      const out = await t.call({ conversationId: HTH, body: NEUTRAL, blobKeys: [key], confirm: true });
+      expect(out.sent).toBe(true);
+      const up = p.calls.find((c) => c.path === 'DocumentUpload/UploadFile')!;
+      const file = (up.body as FormData).get('__file__[]') as File;
+      expect(file.name).toBe('scan.pdf');
+      expect(file.type).toBe('application/pdf');
+      expect(Buffer.from(await file.arrayBuffer()).equals(PDF_BYTES)).toBe(true);
+      const send = JSON.parse(p.calls.find((c) => c.path.endsWith('SendReply'))!.body as string);
+      expect(send.documentIds).toEqual([DOC]);
+      expect(deletesAtSend).toEqual([]);
+      expect(deletes(blobs)).toEqual([key]);
+      expect(blobs.objects.has(key)).toBe(false);
+      expect(out.uploadStore).toEqual({ deleted: ['scan.pdf'] });
+    });
+
+    it('sends base64 attachments and blobs together, in that order', async () => {
+      const blobs = fakeBlobs();
+      const p = portal({ newBodyLines: [NEUTRAL] });
+      const t = tool(p);
+      const key = await uploaded(t, blobs, 'scan.pdf');
+      const out = await t.call({
+        conversationId: HTH,
+        body: NEUTRAL,
+        attachments: [{ filename: 'photo.png', contentBase64: png }],
+        blobKeys: [key],
+        confirm: true,
+      });
+      expect(out.sent).toBe(true);
+      const names = p.calls
+        .filter((c) => c.path === 'DocumentUpload/UploadFile')
+        .map((c) => ((c.body as FormData).get('__file__[]') as File).name);
+      expect(names).toEqual(['photo.png', 'scan.pdf']);
+    });
+
+    it('keeps the blob when the send fails before anything went out', async () => {
+      const blobs = fakeBlobs();
+      const p = portal({ saveDraftAnswer: '<title>Oops!</title>' });
+      const t = tool(p);
+      const key = await uploaded(t, blobs, 'scan.pdf');
+      await expect(t.call({ conversationId: HTH, body: 'x', blobKeys: [key], confirm: true })).rejects.toThrow();
+      expect(deletes(blobs)).toEqual([]);
+      expect(blobs.objects.has(key)).toBe(true);
+    });
+
+    it('keeps the blob when the send is uncertain', async () => {
+      const blobs = fakeBlobs();
+      const p = portal({ sendReplyAnswer: '""' });
+      const t = tool(p);
+      const key = await uploaded(t, blobs, 'scan.pdf');
+      await expect(t.call({ conversationId: HTH, body: 'not what the thread shows', blobKeys: [key], confirm: true })).rejects.toThrow(/may have been sent/);
+      expect(deletes(blobs)).toEqual([]);
+    });
+
+    it('refuses a blob whose bytes changed after the preview, and sends nothing', async () => {
+      const blobs = fakeBlobs();
+      const p = portal();
+      const t = tool(p);
+      const key = await uploaded(t, blobs, 'scan.pdf');
+      const args = { conversationId: HTH, body: 'see attached', blobKeys: [key] };
+      const preview = await t.raw(args);
+      blobs.objects.set(key, { bytes: Buffer.from('%PDF-1.7\nswapped\n'), type: 'application/pdf' });
+      const out = await t.raw({ ...args, confirmToken: preview.confirmToken });
+      expect(out.error).toBe('DRAFT_CHANGED');
+      expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+      expect(deletes(blobs)).toEqual([]);
+    });
+
+    it('applies the portal\'s file-type limit to blobs', async () => {
+      const blobs = fakeBlobs();
+      const p = portal();
+      const key = keyFor('run.exe');
+      blobs.objects.set(key, { bytes: PDF_BYTES, type: 'application/octet-stream' });
+      await expect(tool(p).call({ conversationId: HTH, body: 'x', blobKeys: [key], confirm: true })).rejects.toThrow(/EXE/);
+      expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+    });
+
+    it('applies the portal\'s size limit to blobs', async () => {
+      const blobs = fakeBlobs();
+      const p = portal();
+      const t = tool(p);
+      const key = await uploaded(t, blobs, 'big.pdf', Buffer.alloc(10240 * 1024 + 1));
+      await expect(t.call({ conversationId: HTH, body: 'x', blobKeys: [key], confirm: true })).rejects.toThrow(/big\.pdf is too large/);
+      expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+    });
+
+    it('refuses an empty blob', async () => {
+      const blobs = fakeBlobs();
+      const t = tool(portal());
+      const key = await uploaded(t, blobs, 'empty.pdf', Buffer.alloc(0));
+      await expect(t.raw({ conversationId: HTH, body: 'x', blobKeys: [key] })).rejects.toThrow(/empty\.pdf is empty/);
+    });
+
+    it('counts base64 attachments and blobs together against the portal\'s maximum', async () => {
+      const blobs = fakeBlobs();
+      const p = portal();
+      const t = tool(p);
+      const a = await uploaded(t, blobs, 'a.pdf');
+      const b = await uploaded(t, blobs, 'b.pdf');
+      const f = { filename: 'c.png', contentBase64: png };
+      await expect(
+        t.call({ conversationId: HTH, body: 'x', attachments: [f, f], blobKeys: [a, b], confirm: true }),
+      ).rejects.toThrow(/at most 3/);
+      expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+      expect(blobs.calls.filter((c) => c.method === 'GET')).toEqual([]);
+    });
+
+    it('refuses a key that is not an upload slot\'s', async () => {
+      const blobs = fakeBlobs();
+      blobs.objects.set('exports/report.pdf', { bytes: PDF_BYTES, type: 'application/pdf' });
+      await expect(
+        tool(portal()).raw({ conversationId: HTH, body: 'x', blobKeys: ['exports/report.pdf'] }),
+      ).rejects.toThrow(/not an upload key[\s\S]*mah_upload_slots/);
+      expect(blobs.calls).toEqual([]);
+    });
+
+    it('says when a blob is missing (never PUT, expired, or already used)', async () => {
+      fakeBlobs();
+      await expect(
+        tool(portal()).raw({ conversationId: HTH, body: 'x', blobKeys: [keyFor('scan.pdf')] }),
+      ).rejects.toThrow(/scan\.pdf[\s\S]*could not be read/);
+    });
+
+    it('refuses blobKeys without a blob store, before touching the portal\'s write endpoints', async () => {
+      const p = portal();
+      await expect(
+        tool(p).raw({ conversationId: HTH, body: 'x', blobKeys: [keyFor('scan.pdf')] }),
+      ).rejects.toThrow(/blob store/i);
+      expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+    });
+
+    it('reports a failed delete after a successful send, without failing it', async () => {
+      const blobs = fakeBlobs();
+      const p = portal({ newBodyLines: [NEUTRAL] });
+      const t = tool(p);
+      const key = await uploaded(t, blobs, 'scan.pdf');
+      blobs.failDelete = true;
+      const out = await t.call({ conversationId: HTH, body: NEUTRAL, blobKeys: [key], confirm: true });
+      expect(out.sent).toBe(true);
+      const store = out.uploadStore as { deleted: string[]; notDeleted: Array<{ filename: string; error: string }> };
+      expect(store.deleted).toEqual([]);
+      expect(store.notDeleted).toHaveLength(1);
+      expect(store.notDeleted[0]!.filename).toBe('scan.pdf');
+      expect(store.notDeleted[0]!.error).not.toContain(BLOB_BASE);
+    });
+  });
+
+  describe('strict base64', () => {
+    it('refuses a truncated payload, naming the file, instead of sending a corrupt one', async () => {
+      const p = portal();
+      // `png` with its final character cut off: Buffer.from would silently decode it.
+      const truncated = png.slice(0, -1);
+      await expect(
+        tool(p).call({ conversationId: HTH, body: 'x', attachments: [{ filename: 'scan.png', contentBase64: truncated }], confirm: true }),
+      ).rejects.toThrow(/scan\.png[\s\S]*not valid base64/);
+      expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
+    });
+
+    it('still accepts line-wrapped base64', async () => {
+      const p = portal();
+      const wrapped = PDF_BYTES.toString('base64').replace(/(.{8})/g, '$1\n');
+      const out = await tool(p).raw({ conversationId: HTH, body: 'x', attachments: [{ filename: 'scan.pdf', contentBase64: wrapped }] });
+      expect(typeof out.confirmToken).toBe('string');
+    });
   });
 });

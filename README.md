@@ -129,6 +129,7 @@ first call prints a pair code — approve it once in the ContextMint Bridge popu
 | `MCP_CONFIRM_ELICITATION` | `on` | `off` never shows a confirmation prompt, so every client gets the `MCP_CONFIRM_MODE` path. Set it for a client that claims to support prompts but never shows one (the reply hangs — opencode 2.0.x). Any other value stays `on`, with a warning on stderr. |
 | `MCP_CONFIRM_TTL_SECONDS` | `600` | How long a token stays valid. |
 | `MCP_CONFIRM_SECRET` | random per process | Signing key; set it only if tokens must survive a server restart. |
+| `MCP_BLOB_BASE_URL` / `MCP_BLOB_SIGNING_KEY` | — | Set by mcp-host, never by hand: the per-registration upload store behind `mah_upload_slots`. Unset on a local install, where only base64 `attachments` work. |
 
 ## Tools
 
@@ -153,6 +154,7 @@ stated rather than inferred.
 | `mah_list_message_folders` | Message Center folders with unread counts |
 | `mah_list_messages` | Message Center conversations for a folder, each with the `conversationId` to reply to |
 | `mah_reply_message` | Reply to a conversation as the active patient — asks you to confirm first: a prompt where the client supports one, otherwise a preview and a `confirmToken` *(irreversible)* |
+| `mah_upload_slots` | Hosted only: signed upload URLs for files to attach to a reply, named back to `mah_reply_message` by `blobKeys`. Sends nothing |
 | `mah_list_insurance` | Insurance coverages on file |
 | `mah_list_care_team` | Care team providers, internal and external |
 | `mah_list_billing_accounts` | Billing accounts and balances (parsed from HTML) |
@@ -219,7 +221,8 @@ local organization returns HTTP 500. The client assembles this from
 ## Replying
 
 `mah_reply_message` takes a `conversationId` from `mah_list_messages`, a plain-text
-`body`, and optionally `attachments`. It replies **as whichever patient is active**.
+`body`, and optionally files — `attachments` (base64) and/or `blobKeys` (hosted uploads).
+It replies **as whichever patient is active**.
 
 - **It asks before it sends.** A client that can show a confirmation prompt (Claude
   Code) gets one with the thread, recipients, body and attachments, unless
@@ -243,6 +246,22 @@ local organization returns HTTP 500. The client assembles this from
   registered only when writes were allowed would disappear for everyone.
 - **Limits come from the portal**: 500 characters, 3 attachments, 10 MB per document or
   image (64 MB per video), BMP/DOC/DOCX/JPEG/JPG/PDF/PNG/TIF/TIFF and common video types.
+- **Two ways to attach a file.** `attachments` carries base64 inside the tool call: fine
+  for a small file, but on a hosted deployment every byte rides in one request (mcp-host
+  caps it at ~9.9 MiB) and the model has to emit it as text. For anything larger — a phone
+  photo, a scanned PDF — call `mah_upload_slots({files:[{filename}]})` (hosted only), `PUT`
+  each file to its signed `uploadUrl` (each slot carries a ready `curl`), then pass the
+  returned `blobKeys` to `mah_reply_message`. Both kinds count together against the
+  portal's limit and go through the same checks.
+- **A file is bound by its bytes.** The preview reads every file — base64 is decoded
+  strictly, so a truncated payload is refused rather than sent corrupt; a blob is read
+  back from the upload store — and the confirmation binds each file's SHA-256. A blob
+  replaced in the store after the preview is refused (`DRAFT_CHANGED`). Nothing is
+  uploaded to the portal before the send is approved.
+- **Uploaded copies are deleted only once the reply is sent.** A reply that fails, or
+  may have gone out, keeps them, so the same `blobKeys` can be retried until the slot
+  expires. A delete that fails after a send is reported under `uploadStore.notDeleted`,
+  never as a failure — the store's retention reclaims it.
 - **Attachments need bridge-less mode.** fetchproxy relays a request body as text, which
   a binary upload does not survive, so through the browser bridge a reply with
   attachments is refused before anything is uploaded.
