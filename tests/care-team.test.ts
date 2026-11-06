@@ -18,7 +18,7 @@ function careTeam(answer: (init: FetchInit) => unknown) {
     fetch: async (init) => {
       if (!init.path.includes('/')) return { status: 200, body: signedInPage };
       if (init.path.endsWith('FetchHealthSummary')) {
-        return json({ patientFirstName: 'Christopher', header: { patientAge: 45 } });
+        return json({ patientFirstName: 'Alex', header: { patientAge: 45 } });
       }
       return json(answer(init));
     },

@@ -48,7 +48,7 @@ const oldMessage = {
   wmgId: 'WP-24old',
   isUnread: false,
   deliveryInstantISO: '2026-08-26T12:17:41Z',
-  body: storedBody(['Script sent to Harris Teeter']),
+  body: storedBody(['Script sent to Example Pharmacy']),
   author: { displayName: '', wprKey: '' , empKey: 'WP-24provider' },
   attachments: [],
   tasks: [],
@@ -58,15 +58,15 @@ const oldMessage = {
 function details(messages: unknown[], overrides: Record<string, unknown> = {}) {
   return {
     hthId: HTH,
-    subject: 'Zepbound refill',
+    subject: 'Example medication refill',
     organizationId: '',
     replyFlags: { canReply: true, cannotReplyReason: 0 },
-    viewers: { [SELF]: { wprId: SELF, name: 'Christopher', isSelf: true, isShown: false, isSelected: false, organizationId: '' } },
+    viewers: { [SELF]: { wprId: SELF, name: 'Alex', isSelf: true, isShown: false, isSelected: false, organizationId: '' } },
     viewerKeys: [SELF],
     userKeys: ['WP-24provider', 'ser_WP-24nurse'],
     users: {
-      'WP-24provider': { name: 'Vibhu Dhingra, MD' },
-      'ser_WP-24nurse': { name: 'Jade W, RN' },
+      'WP-24provider': { name: 'Pat Doe, MD' },
+      'ser_WP-24nurse': { name: 'Casey R, RN' },
     },
     messages,
     ...overrides,
@@ -100,7 +100,7 @@ function portal(opts: {
       hook?.[1]();
       if (!path.startsWith('api/') && !path.startsWith('DocumentUpload/')) return { status: 200, body: signedInPage };
       if (path.endsWith('health-summary/FetchHealthSummary')) {
-        return json({ patientFirstName: 'Christopher', header: { patientAge: 45 } });
+        return json({ patientFirstName: 'Alex', header: { patientAge: 45 } });
       }
       if (path.endsWith('GetConversationDetails')) {
         const sent = p.sent
@@ -209,10 +209,10 @@ describe('mah_reply_message — the preview', () => {
     expect(out).toMatchObject({ status: 'confirmation-required', dispatched: false });
     expect(endpoints(p).filter((e) => mutating.test(e))).toEqual([]);
     expect(out.preview).toMatchObject({
-      patient: 'Christopher',
+      patient: 'Alex',
       conversationId: HTH,
-      subject: 'Zepbound refill',
-      recipients: ['Vibhu Dhingra, MD', 'Jade W, RN'],
+      subject: 'Example medication refill',
+      recipients: ['Pat Doe, MD', 'Casey R, RN'],
       body: 'Hello there',
     });
     expect(String(out.instruction)).toMatch(/confirmToken/);
@@ -294,7 +294,7 @@ describe('mah_reply_message — sending', () => {
     expect(out).toMatchObject({
       sent: true,
       verified: true,
-      patient: 'Christopher',
+      patient: 'Alex',
       conversationId: HTH,
       message: { wmgId: NEW_WMG, deliveryInstantISO: '2026-09-21T18:08:32Z', attachments: [] },
     });

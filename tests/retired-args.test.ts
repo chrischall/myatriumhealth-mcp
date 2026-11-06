@@ -24,7 +24,7 @@ describe('retired arguments are tolerated, not rejected', () => {
       fetch: async (init: FetchInit): Promise<FetchResult> => {
         pages.push(init.path);
         if (init.path.endsWith('FetchHealthSummary')) {
-          return { status: 200, body: JSON.stringify({ patientFirstName: 'Christopher', header: { patientAge: 45 } }) };
+          return { status: 200, body: JSON.stringify({ patientFirstName: 'Alex', header: { patientAge: 45 } }) };
         }
         return { status: 200, body: signedInPage };
       },

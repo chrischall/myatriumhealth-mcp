@@ -16,7 +16,7 @@ const list = {
   conversations: [
     {
       hthId: 'WP-24thread',
-      subject: 'Zepbound refill',
+      subject: 'Example medication refill',
       userKeys: ['WP-24provider'],
       messages: [
         { wmgId: 'WP-24a', deliveryInstantISO: '2026-08-19T21:01:48Z', isUnread: false },
@@ -24,7 +24,7 @@ const list = {
       ],
     },
   ],
-  users: { 'WP-24provider': { name: 'Vibhu Dhingra, MD' } },
+  users: { 'WP-24provider': { name: 'Pat Doe, MD' } },
 };
 
 function listMessages() {
@@ -34,7 +34,7 @@ function listMessages() {
     close: async () => {},
     fetch: async (init) => {
       if (!init.path.startsWith('api/')) return { status: 200, body: signedInPage };
-      if (init.path.endsWith('FetchHealthSummary')) return json({ patientFirstName: 'Christopher', header: { patientAge: 45 } });
+      if (init.path.endsWith('FetchHealthSummary')) return json({ patientFirstName: 'Alex', header: { patientAge: 45 } });
       if (init.path.endsWith('GetOrganizations')) return json({ organizations: {} });
       return json(list);
     },
