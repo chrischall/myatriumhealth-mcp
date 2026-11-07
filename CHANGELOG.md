@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.5.0...v1.5.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **deps:** upgrade @chrischall/mcp-utils to 3.7.2 so uploads carry only the file's bytes ([#143](https://github.com/chrischall/myatriumhealth-mcp/issues/143)) ([dfb876a](https://github.com/chrischall/myatriumhealth-mcp/commit/dfb876ab247fecbb09e8f62f2ba56bf613a1f049))
+
 ## [1.5.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.4.1...v1.5.0) (2026-11-06)
 
 
