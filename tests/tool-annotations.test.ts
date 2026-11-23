@@ -8,6 +8,7 @@ import { registerAccountTools } from '../src/tools/account.js';
 import { registerAuthTools } from '../src/tools/auth.js';
 import { registerBillingTools } from '../src/tools/billing.js';
 import { registerMahHealthcheckTool } from '../src/tools/healthcheck.js';
+import { registerFileTools } from '../src/tools/files.js';
 import { registerMessageTools } from '../src/tools/messages.js';
 import { registerPatientTools } from '../src/tools/patients.js';
 import { registerRecordTools } from '../src/tools/records.js';
@@ -44,6 +45,7 @@ async function servedTools() {
     registerAccountTools(server, client, patients);
     registerBillingTools(server, client, patients);
     registerMessageTools(server, client, patients, { readOnly: false, attachmentsSupported: true });
+    registerFileTools(server, client, patients, { readOnly: false });
     registerPatientTools(server, client, patients);
     registerAuthTools(server, auth);
     registerMahHealthcheckTool(server, client, { auth, bridge: undefined });
@@ -55,7 +57,7 @@ async function servedTools() {
 
 describe('tool annotations', () => {
   it('covers the full served surface', async () => {
-    expect(await servedTools()).toHaveLength(24);
+    expect(await servedTools()).toHaveLength(29);
   });
 
   it('sets an explicit boolean destructiveHint on every write', async () => {
@@ -91,7 +93,10 @@ describe('tool annotations', () => {
       .filter((t) => t.annotations?.readOnlyHint !== true)
       .map((t) => [t.name, t.annotations?.destructiveHint])
       .sort(([a], [b]) => String(a).localeCompare(String(b)));
+    // mah_get_message reads, and writes only when asked to mark a thread read
+    // — which marking unread would undo, so it is not destructive.
     expect(writes).toEqual([
+      ['mah_get_message', false],
       ['mah_reply_message', true],
       ['mah_send_verification_code', true],
       ['mah_set_active_patient', false],
