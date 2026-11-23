@@ -239,12 +239,59 @@ Each `.ba_card` carries `.ba_card_header_saLabel_saName` (account name),
 `.ba_card_status_due_amount`. `billingSystem` is empty on some accounts, so treat every
 field as optional. See `src/parse.ts`.
 
-## Documents — not captured
+## Message bodies, images, attachments, letters, documents
 
-`Documents` renders no document list on the landing page (964 characters of visible text)
-and issues no XHR. It most likely requires selecting a category first; that flow has not
-been captured.
+Request shapes below were read off the portal's own public app bundles
+(`/myatriumhealth/scripts/lib/pxbuild/epic.px.client.<feature>.js` — `conversations`,
+`communication-center`, `attachments`, `document-viewer`, `document-center`, `letters`;
+served without a session), not guessed. Except where marked **verified live**, they
+have not yet been exercised against a signed-in session — confirm each before relying
+on it and update this section.
 
+**Message bodies** (verified live, read-only, from `GetConversationList`): Epic
+"fmtConv" HTML — `<div id="fmtConvN" class="fmtConv">`, a `<style nonce>` block keyed to
+that id, then one `div[data-paragraph=N]` per paragraph of styled `<span>`s, `<ul>/<li>`
+lists, and inline images as
+`<img class="iK_N" src="/myatriumhealth/Image/Load?fileName=<guid>" alt width height>`.
+An empty paragraph is a spacer. One body ran to ~9 KB, mostly styling.
+
+**Message authors** (verified live): staff messages carry `author.empKey`, which DOES
+resolve against the response's `users` (and the thread's `userOverrideNames`); the
+patient's own messages carry `author.wprKey` instead. `displayName` was empty on every
+message seen.
+
+**Attachments** (shape verified live): `messages[].attachments[]` →
+`{type, dcsId, etxId, fileExtension, name, organizationId, legacyUrlForCommunityJump}`.
+`type` is the app's enum `ETX=1, DCS=2, DCS_HNO=3`. To open one the app calls
+`POST api/documents/viewer/GetDocumentDetails`
+`{dcsId, fileExtension, organizationId, useOldMobileLink: false}` →
+`{downloadUrl, previewUrl, mimeType, allowPreview, displayName,
+userFriendlyDisplayName, fileDescription, legacyEncryption, …}` and downloads
+`downloadUrl` (an empty `downloadUrl` means view-only). There is also a
+`GetDocumentDetailsLegacy` with the same body, used when `legacyEncryption` is set.
+
+**Inline images:** `GET Image/Load?fileName=<guid>`, with the session cookie.
+
+**Marking read:** the app updates its own state when a thread is opened, and its
+explicit bulk action is `POST api/conversations/BulkConversationAction`
+`{Conversations: [{conversationId, organizationId}], actionType: "BulkRead"}`
+(`BulkUnread`, `BulkBookmark`, … likewise). Which thread-opening call
+(`GetConversationDetails`, `GetConversationMessages` — the latter takes
+`{id, organizationId, startInstantISO, maxReadMessages, PageNonce}`) the server treats
+as "read" is not established, so `mah_get_message` reads from `GetConversationList`.
+
+**Letters:** `POST api/letters/GetLettersList` `{}` →
+`{letters[{hnoId, csn, dateISO, reason, viewed, empId, depId}], users, departments}`
+(sender = `departments[depId]`, else `users[empId]`).
+`POST api/letters/GetLetterDetails` `{hnoId, csn, PageNonce}` → `{bodyHTML, …}`.
+
+**Document Center ("My Documents"):** `POST api/documents/viewer/LoadOtherDocuments`
+`{isInitialLoad: true}` returns the first 25 `documents[{dcsID, docExt, docType,
+docDesc, date, new, pendingApprovalStatus, visit{csn, …}, …}]`; `isInitialLoad: false`
+returns the next 25 (the server holds the cursor); fewer than 25 means the end. A
+document opens like an attachment, via `GetDocumentDetails` with
+`useOldMobileLink: true`. `LoadDocumentsToSign` lists e-signature documents (not read
+by this server).
 
 ## Patient switching (proxy access)
 

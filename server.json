@@ -24,9 +24,15 @@
         },
         {
           "name": "MAH_READ_ONLY",
-          "description": "true refuses mah_reply_message sends (previews still work). Default false.",
+          "description": "true refuses mah_reply_message sends (previews still work) and mah_get_message markRead. Default false.",
           "isRequired": false,
           "format": "boolean"
+        },
+        {
+          "name": "MAH_OUTPUT_DIR",
+          "description": "Directory downloaded attachments, documents and oversized or non-viewable images are saved to (0600 files), default ~/Downloads/myatriumhealth-mcp. Local installs only; a hosted deployment returns a download link instead.",
+          "isRequired": false,
+          "format": "string"
         },
         {
           "name": "MAH_USERNAME",

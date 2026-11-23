@@ -39,6 +39,7 @@
         "MAH_DEVICE_FILE": "${user_config.mah_device_file}",
         "MAH_WS_PORT": "${user_config.mah_ws_port}",
         "MAH_READ_ONLY": "${user_config.mah_read_only}",
+        "MAH_OUTPUT_DIR": "${user_config.mah_output_dir}",
         "FETCHPROXY_WS_HOST": "${user_config.fetchproxy_ws_host}",
         "FETCHPROXY_IDENTITY_DIR": "${user_config.fetchproxy_identity_dir}"
       }
@@ -48,6 +49,14 @@
     {
       "name": "mah_auth_status",
       "description": "Report whether a stored session can be resumed and whether verification is pending"
+    },
+    {
+      "name": "mah_download_attachment",
+      "description": "Download a file attached to a message: images as image content, PDFs as text plus the file"
+    },
+    {
+      "name": "mah_get_document",
+      "description": "Open a letter as text, or download a Document Center document"
     },
     {
       "name": "mah_get_health_summary",
@@ -68,6 +77,10 @@
     {
       "name": "mah_list_care_team",
       "description": "List care team providers with specialty and relationship, internal and external"
+    },
+    {
+      "name": "mah_list_documents",
+      "description": "List letters and Document Center documents (the new-document-available items)"
     },
     {
       "name": "mah_list_goals",
@@ -134,6 +147,14 @@
       "description": "List the patients this login can open: the account holder plus anyone who granted proxy access."
     },
     {
+      "name": "mah_get_image",
+      "description": "View an inline image from a message or letter (Image/Load), fetched through the signed-in session"
+    },
+    {
+      "name": "mah_get_message",
+      "description": "Read one Message Center conversation as clean text, with its inline images named and its attachments listed"
+    },
+    {
       "name": "mah_get_patient_context",
       "description": "Report which patient the reading tools are currently returning data for."
     },
@@ -177,7 +198,13 @@
     "mah_read_only": {
       "type": "string",
       "title": "Read-only (refuse replies)",
-      "description": "true refuses mah_reply_message sends (previews still work). The tool stays listed either way. Default false.",
+      "description": "true refuses mah_reply_message sends (previews still work) and mah_get_message markRead. The tools stay listed either way. Default false.",
+      "required": false
+    },
+    "mah_output_dir": {
+      "type": "string",
+      "title": "Download folder (optional)",
+      "description": "Directory downloaded attachments, documents and oversized or non-viewable images are saved to (0600 files), default ~/Downloads/myatriumhealth-mcp. Local installs only; a hosted deployment returns a download link instead.",
       "required": false
     },
     "fetchproxy_ws_host": {
