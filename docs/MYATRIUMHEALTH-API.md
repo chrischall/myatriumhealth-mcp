@@ -295,7 +295,9 @@ as "read" is not established, so `mah_get_message` reads from `GetConversationLi
 opening may mark one viewed): `POST api/letters/GetLettersList` `{}` →
 `{letters[{hnoId, csn, dateISO, reason, viewed, empId, depId}], users, departments}`
 (sender = `departments[depId]`, else `users[empId]`).
-`POST api/letters/GetLetterDetails` `{hnoId, csn, PageNonce}` → `{bodyHTML, …}`.
+`POST api/letters/GetLetterDetails` `{hnoId, csn, PageNonce}` → `{bodyHTML, …}`. Verified live 2026-11-23:
+it returns the letter (readable text, inline images as `Image/Load` references), and an unread letter reads as
+viewed afterwards (GetLettersList's `viewed` flips to true).
 
 **Document Center ("My Documents")** (verified live: 12 documents, TIF and HTML; items
 also carry `docID, blobCat, dateRaw, downloadOnly, isExpired, onlyAllowedPreview`.

@@ -322,8 +322,8 @@ export function registerFileTools(
         '(letterId + csn) comes back as readable text with its inline images as [image N: fileName=...] ' +
         'placeholders for mah_get_image; a document (documentId + fileExtension) is downloaded — a PDF ' +
         'as its text plus the file, a viewable image as image content, anything else as a file ' +
-        '(MAH_OUTPUT_DIR locally, a download link when hosted). The portal may record the item as ' +
-        'viewed, as opening it in the web app does. ' +
+        '(MAH_OUTPUT_DIR locally, a download link when hosted). Opening an unread letter marks it viewed ' +
+        'in the portal, as the web app does (verified live); a document may be marked viewed too. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       _meta: healthMeta('lookup', { aliases: ['open letter', 'read document', 'visit summary', 'download document'] }),
