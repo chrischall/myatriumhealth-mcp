@@ -6,7 +6,21 @@ import { McpToolError } from '@chrischall/mcp-utils';
 import type { MyAtriumHealthAuth } from './auth.js';
 import { BASE, MfaRequiredError } from './auth.js';
 import { isAuthWall } from './client.js';
-import { NotAcceptedError, type FetchInit, type FetchResult, type MahTransport } from './transport.js';
+import {
+  NotAcceptedError,
+  binaryAsHtml,
+  type BinaryResult,
+  type FetchInit,
+  type FetchResult,
+  type MahTransport,
+} from './transport.js';
+
+
+/** Whether a binary answer is the portal sending us to sign in. */
+function isLoginAnswer(r: BinaryResult): boolean {
+  if (r.status >= 300 && r.status < 400 && /Authentication\/Login/i.test(r.location ?? '')) return true;
+  return /<title>[^<]*Login Page/i.test(binaryAsHtml(r) ?? '');
+}
 
 export class ServerTransport implements MahTransport {
   private loggedIn = false;
@@ -106,6 +120,47 @@ export class ServerTransport implements MahTransport {
     // longer good. Forget it, so the next call re-probes and can surface the
     // verification-code flow instead of hitting the same wall indefinitely.
     if (isAuthWall(out.body)) this.loggedIn = false;
+    return out;
+  }
+
+  /**
+   * {@link fetch}, answered as bytes, with the same once-only re-sign-in. A
+   * re-sign-in that needs a verification code raises the code flow
+   * (MfaRequiredError) exactly as every other tool does.
+   */
+  async fetchBytes(init: FetchInit): Promise<BinaryResult> {
+    await this.ensureSession();
+    const send = async (): Promise<BinaryResult> => {
+      const { res, bytes } = await this.auth.requestBytes(init.path, {
+        method: init.method,
+        ...(init.headers !== undefined ? { headers: init.headers } : {}),
+        ...(init.body !== undefined ? { body: init.body } : {}),
+      });
+      const out: BinaryResult = { status: res.status, bytes, url: `${BASE}/${init.path}` };
+      const type = res.headers.get('content-type');
+      const disposition = res.headers.get('content-disposition');
+      const location = res.headers.get('location');
+      if (type !== null) out.contentType = type;
+      if (disposition !== null) out.contentDisposition = disposition;
+      if (location !== null) out.location = location;
+      return out;
+    };
+    let out = await send();
+    this.auth.persistIfDirty();
+    if (isLoginAnswer(out)) {
+      this.loggedIn = false;
+      await this.ensureSession();
+      out = await send();
+      this.auth.persistIfDirty();
+      if (isLoginAnswer(out)) {
+        throw new McpToolError('MyAtriumHealth session could not be re-established.', {
+          hint: 'Run mah_auth_status; a verification code may be required again.',
+        });
+      }
+    }
+    const html = binaryAsHtml(out);
+    if (html !== undefined && isAuthWall(html)) this.loggedIn = false;
+    if (/SecondaryValidation/i.test(out.location ?? '')) this.loggedIn = false;
     return out;
   }
 }

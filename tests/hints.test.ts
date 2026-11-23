@@ -8,6 +8,7 @@ import { registerAccountTools } from '../src/tools/account.js';
 import { registerAuthTools } from '../src/tools/auth.js';
 import { registerBillingTools } from '../src/tools/billing.js';
 import { registerMahHealthcheckTool } from '../src/tools/healthcheck.js';
+import { registerFileTools } from '../src/tools/files.js';
 import { registerMessageTools } from '../src/tools/messages.js';
 import { registerPatientTools } from '../src/tools/patients.js';
 import { registerRecordTools } from '../src/tools/records.js';
@@ -105,6 +106,7 @@ async function harness() {
     registerBillingTools(server, client, patients);
     registerMessageTools(server, client, patients, { readOnly: false, attachmentsSupported: true });
     registerPatientTools(server, client, patients);
+    registerFileTools(server, client, patients, { readOnly: false });
     registerAuthTools(server, auth);
     registerMahHealthcheckTool(server, client, { auth, bridge: undefined });
   });
@@ -146,6 +148,11 @@ const EXPECTED_INTENT: Record<string, string> = {
   mah_send_verification_code: 'other',
   mah_verify_code: 'other',
   mah_get_health_summary: 'lookup',
+  mah_get_message: 'lookup',
+  mah_get_image: 'lookup',
+  mah_download_attachment: 'lookup',
+  mah_list_documents: 'whats-new',
+  mah_get_document: 'lookup',
   mah_get_patient_context: 'lookup',
   mah_list_allergies: 'lookup',
   mah_list_billing_accounts: 'whats-due',

@@ -12,7 +12,7 @@ import {
   type FetchproxyTransport as FetchproxyVerbTransport,
 } from '@chrischall/mcp-utils/fetchproxy';
 import { McpToolError } from '@chrischall/mcp-utils';
-import type { FetchInit, FetchResult, MahTransport } from './transport.js';
+import type { BinaryResult, FetchInit, FetchResult, MahTransport } from './transport.js';
 
 /**
  * The whole fetchproxy fleet shares this concentrator port — the ContextMint
@@ -82,6 +82,34 @@ export class FetchproxyTransport implements MahTransport {
       ...(init.retryOnTimeout === true ? { retryOnTimeout: true } : {}),
     });
     return { status: response.status, body: response.body, url: response.url };
+  }
+
+  /**
+   * A file read through the bridge, intact (fetchproxy >= 3.5 binary fetch).
+   * The extension runs it from its background worker with the browser's own
+   * cookies for the portal, and refuses a final URL outside the declared
+   * domain — so a redirect off the portal cannot be followed either.
+   */
+  async fetchBytes(init: FetchInit): Promise<BinaryResult> {
+    if (init.body !== undefined && typeof init.body !== 'string') {
+      throw new McpToolError('A binary request body cannot go through the browser bridge.', {
+        hint: 'Set MAH_USERNAME and MAH_PASSWORD so this server signs in itself.',
+      });
+    }
+    const r = await this.inner.server.requestBytes(
+      init.method,
+      `/${APP_ROOT}/${init.path.replace(/^\/+/, '')}`,
+      {
+        ...(init.headers !== undefined ? { headers: init.headers } : {}),
+        ...(init.body !== undefined ? { body: init.body } : {}),
+      },
+    );
+    const out: BinaryResult = { status: r.status, bytes: r.bytes, url: r.url };
+    if (r.headers['content-type'] !== undefined) out.contentType = r.headers['content-type'];
+    if (r.headers['content-disposition'] !== undefined) {
+      out.contentDisposition = r.headers['content-disposition'];
+    }
+    return out;
   }
 
   async runProbe(

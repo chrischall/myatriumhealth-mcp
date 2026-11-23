@@ -9,8 +9,64 @@
 //   legacy  POST <Area>/<Controller>/<Action> form-encoded, empty body
 // Both require the ASP.NET antiforgery token scraped from a signed-in page.
 
-import { McpToolError } from '@chrischall/mcp-utils';
-import { NotAcceptedError, type FetchInit, type FetchResult, type MahTransport } from './transport.js';
+
+import { McpToolError, sniffMimeBytes } from '@chrischall/mcp-utils';
+import {
+  binaryAsHtml,
+  NotAcceptedError,
+  type FetchInit,
+  type FetchResult,
+  type MahTransport,
+} from './transport.js';
+import { imageLoadPath, portalPath } from './portal-path.js';
+
+/** A file read from the portal. */
+export interface PortalFile {
+  bytes: Uint8Array;
+  /** Sniffed from the bytes first; the response's content-type only when that fails. */
+  mimeType: string;
+  /** From content-disposition, when the portal sent one. */
+  fileName?: string;
+}
+
+/** What GetDocumentDetails answers for an attachment or a document (read off the app bundle). */
+export interface DocumentDetails {
+  downloadUrl?: string;
+  previewUrl?: string;
+  mimeType?: string;
+  displayName?: string;
+  userFriendlyDisplayName?: string;
+  fileDescription?: string;
+  allowPreview?: boolean;
+  legacyEncryption?: boolean;
+}
+
+/** Magic bytes for the two image types `sniffMimeBytes` does not name, both portal upload types. */
+function sniffMime(bytes: Uint8Array): string | undefined {
+  const known = sniffMimeBytes(bytes);
+  if (known !== undefined) return known;
+  const [a, b, c, d] = bytes;
+  if ((a === 0x49 && b === 0x49 && c === 0x2a && d === 0x00) || (a === 0x4d && b === 0x4d && c === 0x00 && d === 0x2a)) {
+    return 'image/tiff';
+  }
+  if (a === 0x42 && b === 0x4d) return 'image/bmp';
+  return undefined;
+}
+
+/** The file name a content-disposition header names, if any. */
+export function dispositionFileName(header: string | undefined): string | undefined {
+  if (header === undefined) return undefined;
+  const star = /filename\*\s*=\s*(?:UTF-8|utf-8)''([^;]+)/.exec(header)?.[1];
+  if (star !== undefined) {
+    try {
+      return decodeURIComponent(star.trim());
+    } catch {
+      /* fall through to the plain form */
+    }
+  }
+  const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(header)?.[1]?.trim();
+  return plain !== undefined && plain !== '' ? plain : undefined;
+}
 
 /**
  * The upload context the message composer uses (`dcsSource` 820 = Message
@@ -464,5 +520,167 @@ export class MyAtriumHealthClient {
       path,
       opts.retryOnTimeout === true,
     );
+  }
+
+  /**
+   * Read a file under the app root as bytes. A sign-in or verification page
+   * in place of the file is reported as such — never handed back as the file —
+   * and so is any other HTML page.
+   */
+  async file(path: string): Promise<PortalFile> {
+    const out = await this.readFile(path, false);
+    if (out === null) throw emptyBody(path.split('?')[0] ?? path, this.mode);
+    return out;
+  }
+
+  /**
+   * {@link file}, but an empty 200 answers `null` rather than throwing, and an
+   * HTML body is the file itself when `acceptHtml` (a document whose type the
+   * portal says is text/html) — still never a sign-in page.
+   */
+  private async readFile(path: string, acceptHtml: boolean): Promise<PortalFile | null> {
+    const fetchBytes = this.transport.fetchBytes?.bind(this.transport);
+    if (fetchBytes === undefined) {
+      throw new McpToolError('This connection cannot read files from MyAtriumHealth.', {
+        hint: 'Files need the browser bridge (fetchproxy) or bridge-less sign-in.',
+      });
+    }
+    const r = await fetchBytes({ method: 'GET', path: path.replace(/^\/+/, ''), retryOnTimeout: true });
+    const where = path.split('?')[0] ?? path;
+    if (r.status >= 300 && r.status < 400) {
+      if (/Authentication\/Login|SecondaryValidation/i.test(r.location ?? '')) throw notSignedIn(this.mode);
+      throw new McpToolError(`MyAtriumHealth redirected the request for ${where} instead of returning the file.`, {
+        hint: 'The file may no longer be available; open it in the portal to check.',
+      });
+    }
+    const html = binaryAsHtml(r);
+    if (html !== undefined) {
+      if (isAuthWall(html)) throw notSignedIn(this.mode);
+      if (html.trim() === '') return null;
+      if (acceptHtml && r.status < 400) {
+        const doc: PortalFile = { bytes: r.bytes, mimeType: 'text/html' };
+        const n = dispositionFileName(r.contentDisposition);
+        if (n !== undefined) doc.fileName = n;
+        return doc;
+      }
+      const oops = /<title>([^<]*)</.exec(html)?.[1]?.trim();
+      throw new McpToolError(
+        `${where} returned a web page, not a file${oops ? ` ("${oops}")` : ''}.`,
+        { hint: 'The file may have been removed, or the portal is showing an error page.' },
+      );
+    }
+    if (r.status >= 400) {
+      throw new McpToolError(`MyAtriumHealth answered HTTP ${r.status} for ${where}.`, {
+        hint: 'The file may no longer be available, or it belongs to another patient than the active one.',
+      });
+    }
+    if (r.bytes.length === 0) return null;
+    const declared = r.contentType?.split(';')[0]?.trim().toLowerCase();
+    const out: PortalFile = {
+      bytes: r.bytes,
+      mimeType: sniffMime(r.bytes) ?? (declared !== undefined && declared !== '' ? declared : 'application/octet-stream'),
+    };
+    const name = dispositionFileName(r.contentDisposition);
+    if (name !== undefined) out.fileName = name;
+    return out;
+  }
+
+  /** An inline message image (`Image/Load?fileName=`), as the web app loads it. */
+  async image(fileName: string): Promise<PortalFile> {
+    return this.file(imageLoadPath(fileName));
+  }
+
+  /**
+   * Where an attachment or document can be downloaded from. The request is
+   * the app's own (document-viewer bundle): message attachments pass
+   * `useOldMobileLink: false`, Document Center items `true`.
+   */
+  async documentDetails(args: {
+    dcsId: string;
+    fileExtension: string;
+    organizationId?: string;
+    useOldMobileLink: boolean;
+  }): Promise<DocumentDetails> {
+    return this.api<DocumentDetails>('documents/viewer/GetDocumentDetails', {
+      dcsId: args.dcsId,
+      fileExtension: args.fileExtension,
+      organizationId: args.organizationId ?? '',
+      useOldMobileLink: args.useOldMobileLink,
+    }, READ);
+  }
+
+  /**
+   * Download an attachment or Document Center document, as the portal's
+   * document viewer does: ask GetDocumentDetails where it lives, then GET its
+   * `downloadUrl` (`/Documents/ViewDocument/DownloadOrStream?…`).
+   *
+   * Live 2026-11-23: for a thread from an EXTERNAL organization that URL
+   * answers 200 with an empty body, while GetDocumentDetailsLegacy (same
+   * request) names `/Documents/ViewDocument/Download?…`, which serves the
+   * file. So an empty first answer falls back to the legacy details. The URLs
+   * come from the portal but are still checked: only its own app paths are
+   * fetched with the patient's session.
+   */
+  async documentFile(args: {
+    dcsId: string;
+    fileExtension: string;
+    organizationId?: string;
+    useOldMobileLink: boolean;
+  }): Promise<{ file: PortalFile; details: DocumentDetails }> {
+    const details = await this.documentDetails(args);
+    const first = await this.download(details);
+    if (first !== null) return { file: first, details };
+    const legacy = await this.api<DocumentDetails>('documents/viewer/GetDocumentDetailsLegacy', {
+      dcsId: args.dcsId,
+      fileExtension: args.fileExtension,
+      organizationId: args.organizationId ?? '',
+      useOldMobileLink: args.useOldMobileLink,
+    }, READ);
+    const second = await this.download(legacy);
+    if (second !== null) return { file: second, details: legacy };
+    throw new McpToolError('MyAtriumHealth returned an empty file for this document.', {
+      hint: 'Open it in the portal at https://my.atriumhealth.org/ to check it is still available.',
+    });
+  }
+
+  /** GET a details answer's downloadUrl; `null` when the portal answers empty. */
+  private async download(details: DocumentDetails): Promise<PortalFile | null> {
+    const url = details.downloadUrl;
+    if (typeof url !== 'string' || url.trim() === '') {
+      throw new McpToolError('MyAtriumHealth offers no download for this file.', {
+        hint: 'The portal shows some files only in its own viewer; open it at https://my.atriumhealth.org/.',
+      });
+    }
+    const html = (details.mimeType ?? '').toLowerCase().startsWith('text/html');
+    return this.readFile(portalPath(url, { allowAppRelative: true }), html);
+  }
+
+  /** Letters (app bundle: `letters`). `{letters[], users, departments}`. */
+  async letters(): Promise<unknown> {
+    return this.api('letters/GetLettersList', {}, READ);
+  }
+
+  /** One letter's HTML (`bodyHTML`). Needs the page nonce, as the app sends it. */
+  async letterDetails(hnoId: string, csn: string): Promise<unknown> {
+    return this.api('letters/GetLetterDetails', { hnoId, csn, PageNonce: await this.pageNonce() }, READ);
+  }
+
+  /**
+   * One page (25) of Document Center documents. The portal keeps the cursor:
+   * `isInitialLoad: true` starts over, `false` returns the next page.
+   */
+  async otherDocuments(initial: boolean): Promise<unknown> {
+    return this.api('documents/viewer/LoadOtherDocuments', { isInitialLoad: initial }, READ);
+  }
+
+  /**
+   * Mark conversations read, as the Message Center's bulk "Mark as read" does
+   * (`BulkConversationAction`, `actionType: "BulkRead"`). A write: never re-sent.
+   */
+  async markConversationsRead(items: { conversationId: string; organizationId: string }[]): Promise<unknown> {
+    return this.api('conversations/BulkConversationAction', {
+      Conversations: items,
+      actionType: 'BulkRead',
+    });
   }
 }

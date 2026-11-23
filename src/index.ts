@@ -27,6 +27,7 @@ import type { MahTransport } from './transport.js';
 import { registerAccountTools } from './tools/account.js';
 import { registerAuthTools } from './tools/auth.js';
 import { registerBillingTools } from './tools/billing.js';
+import { registerFileTools } from './tools/files.js';
 import { registerMessageTools } from './tools/messages.js';
 import { registerMahHealthcheckTool } from './tools/healthcheck.js';
 import { registerRecordTools } from './tools/records.js';
@@ -158,6 +159,7 @@ await runMcp({
     // Uploads need a transport that carries binary — only the credential one.
     (server) =>
       registerMessageTools(server, client, patients, { readOnly, attachmentsSupported: bridgeless }),
+    (server) => registerFileTools(server, client, patients, { readOnly }),
     (server) => registerPatientTools(server, client, patients),
     // Unconditional, in both modes. What varies is what they DO, not whether
     // they exist — see registerAuthTools for why a tool surface that follows

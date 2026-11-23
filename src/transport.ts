@@ -50,8 +50,38 @@ export interface FetchResult {
   url?: string;
 }
 
+/**
+ * A response read as BYTES — an inline image, an attachment, a document. The
+ * text {@link FetchResult} cannot carry these: fetchproxy relays a text body as
+ * UTF-8, and a PNG does not survive that.
+ */
+export interface BinaryResult {
+  status: number;
+  bytes: Uint8Array;
+  /** The response `content-type`, when it carried one. */
+  contentType?: string;
+  /** The response `content-disposition`, for the file name. */
+  contentDisposition?: string;
+  /** A redirect target, when the transport does not follow redirects. */
+  location?: string;
+  url?: string;
+}
+
+/** A binary answer that is really an HTML page, decoded; otherwise undefined. */
+export function binaryAsHtml(r: BinaryResult): string | undefined {
+  const html =
+    /text\/html/i.test(r.contentType ?? '') ||
+    (r.contentType === undefined && r.bytes[0] === 0x3c); // '<'
+  return html ? new TextDecoder().decode(r.bytes) : undefined;
+}
+
 export interface MahTransport {
   start(): Promise<void>;
   close(): Promise<void>;
   fetch(init: FetchInit): Promise<FetchResult>;
+  /**
+   * The same request, answered as bytes. Optional so a test fake need not
+   * implement it; the client refuses a file read on a transport without it.
+   */
+  fetchBytes?(init: FetchInit): Promise<BinaryResult>;
 }

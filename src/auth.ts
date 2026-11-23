@@ -268,7 +268,28 @@ export class MyAtriumHealthAuth {
 
   /** Public so {@link ServerTransport} can issue requests on this jar. */
   async request(path: string, init: RequestInit = {}): Promise<{ res: Response; body: string }> {
-    const res = await this.doFetch(`${BASE}/${path.replace(/^\/+/, '')}`, {
+    const res = await this.send(path, init);
+    const body = await res.text();
+    this.settle(res, body, path, init);
+    return { res, body };
+  }
+
+  /**
+   * {@link request}, with the body kept as bytes — an image or a document.
+   * Same jar, same edge-block check, same cookie write-back.
+   */
+  async requestBytes(
+    path: string,
+    init: RequestInit = {},
+  ): Promise<{ res: Response; bytes: Uint8Array }> {
+    const res = await this.send(path, init);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    this.settle(res, res.status >= 400 ? new TextDecoder().decode(bytes) : '', path, init);
+    return { res, bytes };
+  }
+
+  private send(path: string, init: RequestInit): Promise<Response> {
+    return this.doFetch(`${BASE}/${path.replace(/^\/+/, '')}`, {
       ...init,
       redirect: 'manual',
       headers: {
@@ -277,7 +298,9 @@ export class MyAtriumHealthAuth {
         ...(init.headers as Record<string, string> | undefined),
       },
     });
-    const body = await res.text();
+  }
+
+  private settle(res: Response, body: string, path: string, init: RequestInit): void {
     // A CDN/WAF refusal page never reached the portal, so it says nothing about
     // the credentials or the session (chrischall/mcp-host#1015). Read as the
     // portal's own answer it was worse than useless: no login-page marker, so
@@ -295,7 +318,6 @@ export class MyAtriumHealthAuth {
       }
     }
     this.absorb(res);
-    return { res, body };
   }
 
   private async antiforgeryToken(): Promise<string> {
