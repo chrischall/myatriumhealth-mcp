@@ -226,6 +226,15 @@ describe('mah_get_message', () => {
     expect(out.markRead).toEqual({ done: true });
   });
 
+  it('judges "already read" on the whole conversation, not the one messageId shown (#150)', async () => {
+    // WP-msg-2 is read but WP-msg-1 in the same thread is unread: BulkRead marks the conversation, so it still runs.
+    const h = harness();
+    const out = await h.json('mah_get_message', { conversationId: 'WP-thread-1', messageId: 'WP-msg-2', includeImages: false, markRead: true });
+    expect(h.calls.some((c) => c.path.endsWith('BulkConversationAction'))).toBe(true);
+    expect(out.markRead).toEqual({ done: true });
+    expect((out.messages as unknown[]).length).toBe(1);
+  });
+
   it('refuses to mark read under MAH_READ_ONLY but still returns the message', async () => {
     const h = harness({ readOnly: true });
     const out = await h.json('mah_get_message', { conversationId: 'WP-thread-1', includeImages: false, markRead: true });
