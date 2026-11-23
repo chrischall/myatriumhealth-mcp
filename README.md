@@ -265,8 +265,10 @@ browser bridge, files need a ContextMint Bridge build with binary fetch.
 
 `mah_list_documents` reads Letters (`letters/GetLettersList`) and Document Center
 (`documents/viewer/LoadOtherDocuments`, 25 per page, up to 200). `mah_get_document`
-opens a letter (`letters/GetLetterDetails`) or downloads a document. The portal may
-record a letter or document as viewed when it is opened, as the web app does.
+opens a letter (`letters/GetLetterDetails`) or downloads a document. **Opening an unread
+letter marks it viewed** in the portal, as the web app does (verified live 2026-11-23: both
+unread letters read as viewed afterwards). Whether opening a new Document Center document
+marks it viewed is not yet observed.
 
 These five tools answer in the fleet's untrusted-data envelope — `{untrusted_content,
 note, patient, …}` — rather than `{patient, data}`, because most of what they return
