@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.6.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.5.1...v1.6.0) (2026-11-23)
+
+
+### Features
+
+* **messages:** read conversations, inline images, attachments and portal documents ([#149](https://github.com/chrischall/myatriumhealth-mcp/issues/149)) ([a715cd0](https://github.com/chrischall/myatriumhealth-mcp/commit/a715cd04eca643bb44e41b4969d8dde92e7e208f))
+
+
+### Bug Fixes
+
+* **deps:** bump the production-dependencies group with 2 updates ([#148](https://github.com/chrischall/myatriumhealth-mcp/issues/148)) ([a2c69e4](https://github.com/chrischall/myatriumhealth-mcp/commit/a2c69e4c32867f81a6cef78fde43af5cd826052f))
+* **deps:** bump the production-dependencies group with 3 updates ([#146](https://github.com/chrischall/myatriumhealth-mcp/issues/146)) ([390d302](https://github.com/chrischall/myatriumhealth-mcp/commit/390d30205ac700590556eb230ad7dbc6e9fbc4b9))
+* **documents:** say that opening an unread letter marks it viewed ([#151](https://github.com/chrischall/myatriumhealth-mcp/issues/151)) ([1cf4476](https://github.com/chrischall/myatriumhealth-mcp/commit/1cf447634458122506bb6896259c667609422be1))
+* **messages:** judge markRead's "already read" on the whole conversation ([#152](https://github.com/chrischall/myatriumhealth-mcp/issues/152)) ([6d98a7f](https://github.com/chrischall/myatriumhealth-mcp/commit/6d98a7f18403d4e8a392f1857d81fce97dcebd0b))
+
 ## [1.5.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.5.0...v1.5.1) (2026-11-07)
 
 
