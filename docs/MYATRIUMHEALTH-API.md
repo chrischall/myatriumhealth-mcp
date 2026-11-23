@@ -241,7 +241,9 @@ field as optional. See `src/parse.ts`.
 
 ## Message bodies, images, attachments, letters, documents
 
-Request shapes below were read off the portal's own public app bundles
+Live, read-only, 2026-11-23 (bridge-less session): message bodies, inline images,
+attachment downloads, the Letters list and Document Center (list + download) were all
+exercised through this server. Request shapes were first read off the portal's own public app bundles
 (`/myatriumhealth/scripts/lib/pxbuild/epic.px.client.<feature>.js` — `conversations`,
 `communication-center`, `attachments`, `document-viewer`, `document-center`, `letters`;
 served without a session), not guessed. Except where marked **verified live**, they
@@ -267,8 +269,17 @@ message seen.
 `{dcsId, fileExtension, organizationId, useOldMobileLink: false}` →
 `{downloadUrl, previewUrl, mimeType, allowPreview, displayName,
 userFriendlyDisplayName, fileDescription, legacyEncryption, …}` and downloads
-`downloadUrl` (an empty `downloadUrl` means view-only). There is also a
-`GetDocumentDetailsLegacy` with the same body, used when `legacyEncryption` is set.
+`downloadUrl` (an empty `downloadUrl` means view-only). **Verified live:** the answer
+also carries `dcsId, token, orgId`; `downloadUrl` is app-relative WITH a leading slash,
+`/Documents/ViewDocument/DownloadOrStream?dcsid=…&displayName=…&dcsExt=PDF&org=…` (the
+app prefixes `/myatriumhealth`), fetched with a plain GET. For attachments on an
+EXTERNAL organization's thread that URL answered **200 with an empty body** every time
+(with or without the org, browser headers, the antiforgery token or a delay), while
+`POST api/documents/viewer/GetDocumentDetailsLegacy` — same body — names
+`/Documents/ViewDocument/Download?dcsid=…&dcsExt=…&org=…`, which served the file (a PDF
+and two TIFFs). The client tries DownloadOrStream first and falls back to the legacy
+details on an empty answer. A TIFF's `previewUrl` (`GetTiffPreview`) is an HTML page,
+not the image.
 
 **Inline images:** `GET Image/Load?fileName=<guid>`, with the session cookie.
 
@@ -280,17 +291,22 @@ explicit bulk action is `POST api/conversations/BulkConversationAction`
 `{id, organizationId, startInstantISO, maxReadMessages, PageNonce}`) the server treats
 as "read" is not established, so `mah_get_message` reads from `GetConversationList`.
 
-**Letters:** `POST api/letters/GetLettersList` `{}` →
+**Letters** (list verified live; details not opened — both letters were unread and
+opening may mark one viewed): `POST api/letters/GetLettersList` `{}` →
 `{letters[{hnoId, csn, dateISO, reason, viewed, empId, depId}], users, departments}`
 (sender = `departments[depId]`, else `users[empId]`).
 `POST api/letters/GetLetterDetails` `{hnoId, csn, PageNonce}` → `{bodyHTML, …}`.
 
-**Document Center ("My Documents"):** `POST api/documents/viewer/LoadOtherDocuments`
+**Document Center ("My Documents")** (verified live: 12 documents, TIF and HTML; items
+also carry `docID, blobCat, dateRaw, downloadOnly, isExpired, onlyAllowedPreview`.
+Opening an already-viewed document changed no `new` flag; whether opening a NEW one
+marks it was not tested): `POST api/documents/viewer/LoadOtherDocuments`
 `{isInitialLoad: true}` returns the first 25 `documents[{dcsID, docExt, docType,
 docDesc, date, new, pendingApprovalStatus, visit{csn, …}, …}]`; `isInitialLoad: false`
 returns the next 25 (the server holds the cursor); fewer than 25 means the end. A
 document opens like an attachment, via `GetDocumentDetails` with
-`useOldMobileLink: true`. `LoadDocumentsToSign` lists e-signature documents (not read
+`useOldMobileLink: true`; an `HTML` document (an e-signed form) downloads as
+`text/html`, which the server returns as text plus the saved file. `LoadDocumentsToSign` lists e-signature documents (not read
 by this server).
 
 ## Patient switching (proxy access)

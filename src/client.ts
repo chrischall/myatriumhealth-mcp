@@ -528,6 +528,17 @@ export class MyAtriumHealthClient {
    * and so is any other HTML page.
    */
   async file(path: string): Promise<PortalFile> {
+    const out = await this.readFile(path, false);
+    if (out === null) throw emptyBody(path.split('?')[0] ?? path, this.mode);
+    return out;
+  }
+
+  /**
+   * {@link file}, but an empty 200 answers `null` rather than throwing, and an
+   * HTML body is the file itself when `acceptHtml` (a document whose type the
+   * portal says is text/html) — still never a sign-in page.
+   */
+  private async readFile(path: string, acceptHtml: boolean): Promise<PortalFile | null> {
     const fetchBytes = this.transport.fetchBytes?.bind(this.transport);
     if (fetchBytes === undefined) {
       throw new McpToolError('This connection cannot read files from MyAtriumHealth.', {
@@ -545,7 +556,13 @@ export class MyAtriumHealthClient {
     const html = binaryAsHtml(r);
     if (html !== undefined) {
       if (isAuthWall(html)) throw notSignedIn(this.mode);
-      if (html.trim() === '') throw emptyBody(where, this.mode);
+      if (html.trim() === '') return null;
+      if (acceptHtml && r.status < 400) {
+        const doc: PortalFile = { bytes: r.bytes, mimeType: 'text/html' };
+        const n = dispositionFileName(r.contentDisposition);
+        if (n !== undefined) doc.fileName = n;
+        return doc;
+      }
       const oops = /<title>([^<]*)</.exec(html)?.[1]?.trim();
       throw new McpToolError(
         `${where} returned a web page, not a file${oops ? ` ("${oops}")` : ''}.`,
@@ -557,7 +574,7 @@ export class MyAtriumHealthClient {
         hint: 'The file may no longer be available, or it belongs to another patient than the active one.',
       });
     }
-    if (r.bytes.length === 0) throw emptyBody(where, this.mode);
+    if (r.bytes.length === 0) return null;
     const declared = r.contentType?.split(';')[0]?.trim().toLowerCase();
     const out: PortalFile = {
       bytes: r.bytes,
@@ -593,18 +610,49 @@ export class MyAtriumHealthClient {
   }
 
   /**
-   * Download what {@link documentDetails} points at. The URL comes from the
-   * portal, but it is still checked: only the portal's own app paths are
+   * Download an attachment or Document Center document, as the portal's
+   * document viewer does: ask GetDocumentDetails where it lives, then GET its
+   * `downloadUrl` (`/Documents/ViewDocument/DownloadOrStream?…`).
+   *
+   * Live 2026-11-23: for a thread from an EXTERNAL organization that URL
+   * answers 200 with an empty body, while GetDocumentDetailsLegacy (same
+   * request) names `/Documents/ViewDocument/Download?…`, which serves the
+   * file. So an empty first answer falls back to the legacy details. The URLs
+   * come from the portal but are still checked: only its own app paths are
    * fetched with the patient's session.
    */
-  async downloadDocument(details: DocumentDetails): Promise<PortalFile> {
-    const url = [details.downloadUrl, details.previewUrl].find((u) => typeof u === 'string' && u.trim() !== '');
-    if (url === undefined) {
+  async documentFile(args: {
+    dcsId: string;
+    fileExtension: string;
+    organizationId?: string;
+    useOldMobileLink: boolean;
+  }): Promise<{ file: PortalFile; details: DocumentDetails }> {
+    const details = await this.documentDetails(args);
+    const first = await this.download(details);
+    if (first !== null) return { file: first, details };
+    const legacy = await this.api<DocumentDetails>('documents/viewer/GetDocumentDetailsLegacy', {
+      dcsId: args.dcsId,
+      fileExtension: args.fileExtension,
+      organizationId: args.organizationId ?? '',
+      useOldMobileLink: args.useOldMobileLink,
+    }, READ);
+    const second = await this.download(legacy);
+    if (second !== null) return { file: second, details: legacy };
+    throw new McpToolError('MyAtriumHealth returned an empty file for this document.', {
+      hint: 'Open it in the portal at https://my.atriumhealth.org/ to check it is still available.',
+    });
+  }
+
+  /** GET a details answer's downloadUrl; `null` when the portal answers empty. */
+  private async download(details: DocumentDetails): Promise<PortalFile | null> {
+    const url = details.downloadUrl;
+    if (typeof url !== 'string' || url.trim() === '') {
       throw new McpToolError('MyAtriumHealth offers no download for this file.', {
         hint: 'The portal shows some files only in its own viewer; open it at https://my.atriumhealth.org/.',
       });
     }
-    return this.file(portalPath(url, { allowAppRelative: true }));
+    const html = (details.mimeType ?? '').toLowerCase().startsWith('text/html');
+    return this.readFile(portalPath(url, { allowAppRelative: true }), html);
   }
 
   /** Letters (app bundle: `letters`). `{letters[], users, departments}`. */

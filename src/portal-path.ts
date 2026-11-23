@@ -41,9 +41,17 @@ export function portalPath(raw: string, opts: PortalPathOptions = {}): string {
   if (!hasScheme && !s.startsWith('/') && opts.allowAppRelative !== true) {
     throw refuse('it is not a portal path');
   }
+  // The portal's own JSON gives some paths app-relative WITH a leading slash (live 2026-11-23:
+  // GetDocumentDetails' downloadUrl is /Documents/ViewDocument?...; its client prefixes the app root). Read
+  // those under the app root — only for portal JSON (`allowAppRelative`), never message HTML. A path that
+  // climbs out (/../x) still resolves outside the app and is refused below.
+  const target =
+    opts.allowAppRelative === true && !hasScheme && s.startsWith('/') && !s.toLowerCase().startsWith(APP_PREFIX)
+      ? s.slice(1)
+      : s;
   let url: URL;
   try {
-    url = new URL(s, `${PORTAL_ORIGIN}${APP_PREFIX}`);
+    url = new URL(target, `${PORTAL_ORIGIN}${APP_PREFIX}`);
   } catch {
     throw refuse('it is not a valid URL');
   }

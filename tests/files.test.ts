@@ -504,3 +504,57 @@ describe('a PDF attachment', () => {
     expect(res.content.slice(1).map((c) => c.text ?? '').join('\n')).toContain('Synthetic clearance letter');
   });
 });
+
+describe('a document the viewer streams empty', () => {
+  // Live 2026-11-23: for an external organization's attachment the
+  // DownloadOrStream URL answered 200 with an EMPTY body, while
+  // GetDocumentDetailsLegacy named /Documents/ViewDocument/Download, which served it.
+  it('falls back to the legacy details and downloads from there', async () => {
+    const h = harness({
+      api: (init) => {
+        if (init.path.endsWith('GetDocumentDetails')) return { downloadUrl: '/Documents/ViewDocument/DownloadOrStream?dcsid=x&dcsExt=PNG', mimeType: 'image/png' };
+        if (init.path.endsWith('GetDocumentDetailsLegacy')) return { downloadUrl: '/Documents/ViewDocument/Download?dcsid=x&dcsExt=PNG', mimeType: 'image/png' };
+        return undefined;
+      },
+      bytes: (init) =>
+        init.path.startsWith('Documents/ViewDocument/DownloadOrStream')
+          ? { status: 200, bytes: new Uint8Array() }
+          : { status: 200, bytes: PNG, contentType: 'image/png' },
+    });
+    const res = await h.call('mah_download_attachment', { conversationId: 'WP-thread-1', messageId: 'WP-msg-1', attachmentId: 'WP-dcs-1' });
+    expect(h.bytesCalls.map((c) => c.path.split('?')[0])).toEqual([
+      'Documents/ViewDocument/DownloadOrStream',
+      'Documents/ViewDocument/Download',
+    ]);
+    expect(res.content.find((c) => c.type === 'image')).toMatchObject({ mimeType: 'image/png' });
+  });
+
+  it('says so when both answers are empty', async () => {
+    const h = harness({
+      api: (init) => (/GetDocumentDetails/.test(init.path) ? { downloadUrl: '/Documents/ViewDocument/Download?d=1' } : undefined),
+      bytes: () => ({ status: 200, bytes: new Uint8Array() }),
+    });
+    await expect(
+      h.call('mah_download_attachment', { conversationId: 'WP-thread-1', messageId: 'WP-msg-1', attachmentId: 'WP-dcs-1' }),
+    ).rejects.toThrow(/empty file/);
+  });
+});
+
+describe('an HTML Document Center document', () => {
+  it('comes back as text plus the saved file, while a sign-in page is still refused', async () => {
+    const page = '<html><head><title>Signed form</title><style>.a{}</style></head><body><p>Synthetic consent form</p><p>Signed.</p></body></html>';
+    const h = harness({
+      api: (init) => (init.path.endsWith('GetDocumentDetails') ? { downloadUrl: '/Documents/ViewDocument/DownloadOrStream?d=1', mimeType: 'text/html' } : undefined),
+      bytes: () => ({ status: 200, bytes: new TextEncoder().encode(page), contentType: 'text/html' }),
+    });
+    const res = await h.call('mah_get_document', { documentId: 'WP-doc-9', fileExtension: 'HTML' });
+    expect(res.content.slice(1).map((c) => c.text ?? '').join('\n')).toContain('Synthetic consent form\nSigned.');
+    expect(readdirSync(outDir)).toHaveLength(1);
+
+    const wall = harness({
+      api: (init) => (init.path.endsWith('GetDocumentDetails') ? { downloadUrl: '/Documents/ViewDocument/DownloadOrStream?d=1', mimeType: 'text/html' } : undefined),
+      bytes: () => ({ status: 200, bytes: new TextEncoder().encode(loginPage), contentType: 'text/html' }),
+    });
+    await expect(wall.call('mah_get_document', { documentId: 'WP-doc-9', fileExtension: 'HTML' })).rejects.toThrow(/Not signed in/);
+  });
+});

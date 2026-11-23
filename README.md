@@ -241,12 +241,14 @@ an entry in `images` (index, fileName, width, height, alt); pass the fileName to
 `mah_get_image`, or call with `includeImages: true` to get up to 10 back as image
 content at once. Attachments are listed with an `attachmentId` for
 `mah_download_attachment`, which asks the portal's document viewer for the file and
-downloads it.
+downloads it — falling back to the viewer's legacy download when the first answer is
+empty, as it is for attachments from an external organization.
 
 **Files.** A viewable image (PNG, JPEG, GIF, WebP under ~3.75 MB) comes back as image
 content. Anything else — a PDF, a TIFF scan, a Word file, an oversized image — is saved
 under `MAH_OUTPUT_DIR` (`0600`, never overwriting) on a local install, or handed back as
-a short-lived download link on a hosted one; a PDF's text layer is returned alongside.
+a short-lived download link on a hosted one; a PDF's text layer, or an HTML document's
+text (Document Center keeps e-signed forms as HTML), is returned alongside.
 Images are not downscaled.
 
 **Only the portal is fetched.** A URL taken from message HTML, a letter or the portal's

@@ -35,6 +35,18 @@ describe('portalPath', () => {
     expect(() => portalPath('Document/Get?x=1')).toThrow();
     expect(portalPath('Document/Get?x=1', { allowAppRelative: true })).toBe('Document/Get?x=1');
   });
+
+  it("reads a portal-JSON root path (/Documents/ViewDocument?...) as app-relative, as the portal's client does", () => {
+    // Live 2026-11-23: GetDocumentDetails returns its downloadUrl as /Documents/ViewDocument?... — app-relative
+    // with a leading slash; the portal's client prefixes the app root (/myatriumhealth).
+    expect(portalPath('/Documents/ViewDocument?doc=x', { allowAppRelative: true })).toBe('Documents/ViewDocument?doc=x');
+    expect(portalPath('/myatriumhealth/Documents/ViewDocument?doc=x', { allowAppRelative: true })).toBe('Documents/ViewDocument?doc=x');
+    // Never from message HTML, and never another host or a path that climbs out.
+    expect(() => portalPath('/Documents/ViewDocument?doc=x')).toThrow(/portal/i);
+    expect(() => portalPath('https://evil.example/Documents/ViewDocument', { allowAppRelative: true })).toThrow(/portal/i);
+    expect(() => portalPath('/../other-app/x', { allowAppRelative: true })).toThrow(/portal/i);
+    expect(() => portalPath('//evil.example/x', { allowAppRelative: true })).toThrow(/portal/i);
+  });
 });
 
 describe('inline image paths', () => {

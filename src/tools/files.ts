@@ -28,6 +28,8 @@ export const MAX_INLINE_IMAGE_BYTES = 8 * 1024 * 1024;
 /** Document Center pages read per call (25 documents each). */
 const MAX_DOCUMENT_PAGES = 8;
 const DOCUMENT_PAGE_SIZE = 25;
+/** Most text returned for an HTML document; the file itself is always saved whole. */
+const HTML_TEXT_MAX_CHARS = 60_000;
 
 const NOTE = (who: string) => `${who} ${UNTRUSTED_CONTENT_RULE}`;
 const MESSAGE_NOTE = NOTE(
@@ -56,6 +58,15 @@ function receipt(d: DeliveredFile): Record<string, unknown> {
 
 /** A PDF's text layer as content blocks, or a note saying why there is none. */
 async function pdfText(file: PortalFile, fileName: string): Promise<{ blocks: Content[]; note?: string }> {
+  if (file.mimeType === 'text/html') {
+    // Document Center keeps e-signed forms as HTML documents.
+    const { text } = messageHtmlToText(new TextDecoder().decode(file.bytes));
+    const cut = text.length > HTML_TEXT_MAX_CHARS;
+    return {
+      blocks: [{ type: 'text', text: `--- ${fileName} (text) ---\n${cut ? text.slice(0, HTML_TEXT_MAX_CHARS) : text}` }],
+      ...(cut ? { note: `The document's text was cut at ${HTML_TEXT_MAX_CHARS} characters; the full file is saved.` } : {}),
+    };
+  }
   if (file.mimeType !== 'application/pdf') return { blocks: [] };
   try {
     const converted = await convertAttachment({ bytes: file.bytes, fileName, mimeType: file.mimeType, mode: 'text' });
@@ -256,13 +267,12 @@ export function registerFileTools(
       const served = await patients.readAs(client, async () => {
         const raw = await findConversation(client, conversationId, folder);
         const att = attachmentOf(raw, messageId, attachmentId);
-        const details = await client.documentDetails({
+        const { file, details } = await client.documentFile({
           dcsId: att.dcsId,
           fileExtension: att.fileExtension,
           organizationId: att.organizationId,
           useOldMobileLink: false,
         });
-        const file = await client.downloadDocument(details);
         if (file.fileName === undefined) {
           const name = att.name ?? details.userFriendlyDisplayName ?? details.displayName;
           if (name !== undefined && name !== '') file.fileName = name;
@@ -340,12 +350,11 @@ export function registerFileTools(
         );
       }
       const served = await patients.readAs(client, async () => {
-        const details = await client.documentDetails({
+        const { file, details } = await client.documentFile({
           dcsId: documentId as string,
           fileExtension: fileExtension ?? '',
           useOldMobileLink: true,
         });
-        const file = await client.downloadDocument(details);
         if (file.fileName === undefined) {
           const name = details.userFriendlyDisplayName ?? details.displayName;
           if (name !== undefined && name !== '') file.fileName = name;
