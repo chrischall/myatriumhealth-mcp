@@ -184,7 +184,9 @@ export function registerFileTools(
         if (markRead) {
           if (opts.readOnly) {
             marked = { done: false, reason: 'MAH_READ_ONLY is set, so nothing in the portal is changed.' };
-          } else if (!messages.some((m) => m.isUnread === true)) {
+          // #150: BulkRead marks the whole conversation, so "already read" is judged on all of its messages,
+          // not only the one a messageId narrowed the result to.
+          } else if (!messagesOf(raw).some((m) => m.isUnread === true)) {
             marked = { done: true, note: 'Already read; nothing to change.' };
           } else {
             await client.markConversationsRead([
