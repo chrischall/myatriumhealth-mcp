@@ -137,7 +137,9 @@ first call prints a pair code — approve it once in the ContextMint Bridge popu
 All read-only except three. `mah_set_active_patient` changes only which patient this
 connector reads — it writes nothing to any chart. `mah_get_message` reads, and changes
 the portal only when called with `markRead: true` (the conversation is then marked
-read, as opening it in the web app would). `mah_reply_message` **sends a message a
+read, as opening it in the web app would). `mah_get_test_result` and `mah_get_document` read, but opening an
+unread result or letter may mark it read in the portal, as the web app does; neither can
+be told not to. `mah_reply_message` **sends a message a
 provider will see**, which cannot be undone: see [Replying](#replying).
 
 Every reading tool returns `{ patient, data }`, so the chart a response belongs to is
@@ -149,7 +151,8 @@ stated rather than inferred.
 | `mah_list_health_issues` | The problem list |
 | `mah_list_immunizations` | Immunizations and dates, by organization |
 | `mah_list_medications` | Medications with dosing instructions (sig) and prescriber |
-| `mah_list_test_results` | Labs and imaging: name, abnormal flag, date, provider comments |
+| `mah_list_test_results` | Labs and imaging: name, abnormal flag, date, provider comments, and the `key` to open each with `mah_get_test_result` |
+| `mah_get_test_result` | One result opened: header (type, status, collected/resulted, providers, abnormal flag), lab components with value, units, range, flag and recent history, the report as clean text (narrative, impression, addenda, rendered report; inline images as `[image N: fileName=…]` placeholders), provider comments as text, scans and linked results. `status` is `available`, `not-released` or `not-found`. Opening a result may mark it read in the portal. *Endpoints unverified on this portal* |
 | `mah_list_upcoming_visits` | Upcoming and in-progress appointments |
 | `mah_list_past_visits` | Past visits, grouped by organization |
 | `mah_list_goals` | Patient goals |

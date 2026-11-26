@@ -349,3 +349,64 @@ changed no cookie value; only a context switch did.
 **Observed effect.** With the account holder selected, `conversations/GetConversationList`
 returned 14 threads; with a proxy subject selected, 3 — none of which appeared in the
 account holder's list. Switching back returned exactly the original 14.
+
+## Test result details — UNVERIFIED on this portal
+
+`mah_get_test_result` uses the requests that public Epic MyChart clients send from the
+React `/app/test-results` activity (read from their published code, not captured here:
+no live call was made while building it, because opening a result may mark it read).
+**None of the shapes below has been exercised against my.atriumhealth.org.** Confirm each
+with a signed-in session and update this section.
+
+**Which key.** `GetList` answers `newResultGroups[] {key, resultList[], organizationID,
+…}` and `newResults{<handle>: {key, name, orderMetadata, …}}`. Grouped by order
+(`groupBy: "ORDER"`), a group's `key` is the ORDER key and its `resultList` names the
+result keys in it; other clients pass the group key to `GetDetails`. `mah_list_test_results`
+therefore gives each result the key of the group listing it, else the result's own `key`.
+Which of the two this portal wants is unverified.
+
+`POST api/test-results/GetDetails` `{orderKey, organizationID: "", PageNonce: ""}` →
+`{orderName, key, results[]}`. Each result: `name, key, isAbnormal, showDetails,
+warningType, warningMessage, hasComment`, `orderMetadata {resultType, resultStatus,
+orderProviderName, authorizingProviderName, readingProviderName, resultTimestampDisplay,
+prioritizedInstantISO, prioritizedInstantDisplay, latestUpdateInstantISO,
+collectionTimestampsDisplay, specimensDisplay, resultingLab{name, …}, read}`,
+`resultComponents[] {componentInfo{componentID, name, commonName, units},
+componentResultInfo{value, isValueRtf, numericValue, referenceRange{formattedReferenceRange,
+low, high, …}, abnormalFlagCategoryValue}, componentComments{contentAsString,
+contentAsHtml, isRTF}}`, `studyResult {narrative, impression, addenda[],
+combinedRTFNarrativeImpression}` (each `{contentAsString, contentAsHtml, isRTF,
+signingInstantTimestamp}`), `resultNote`, `resultLetter`, `providerComments[]
+{commentText, providerName, commentDate}`, `reportDetails {reportID, reportVars{ordId,
+ordDat}, isDownloadablePDFReport}`, `scans[]`, `imageStudies[]`, `fdiLink`. Other clients
+report `abnormalFlagCategoryValue` as the literal `"Unknown"` on every component they
+saw, so the reference range is often the only abnormality signal. An unknown `orderKey`
+answers 200 with an EMPTY envelope (blank `orderName`, one nameless result), never an
+error: the tool reports that as `status: "not-found"`.
+
+`POST api/past-results/GetMultipleHistoricalResultComponents` `{orderID: <orderKey>,
+selectedComponentIDs: [], isInitialLoad: true, startTime: "", endTime: "",
+organizationID: "", isCustomFilterEnabled: false, PageNonce: ""}` →
+`{historicalResults{<componentID>: {historicalResultData[{dateISO, value,
+referenceRange}]}}}`, the trend. Best effort.
+
+`POST api/report-content/LoadReportContent` `{reportID, assumedVariables{ordId, ordDat},
+isFullReportPage: false, uniqueClass: "EID-4", nonce: ""}` → `{reportContent (HTML),
+reportCss, …}`, the rendered report. `reportID` names a report TEMPLATE shared by every
+result of a kind; `ordId` / `ordDat` pick the report. Best effort.
+
+Not established, and parsed loosely (absent, never a throw):
+
+- **Provider comments by reference.** The list's `providerComments` can hold only a
+  `wmgId`; the tool looks that id up in `GetList`'s `newComments` map (value shape
+  unknown: `commentText`, `content`, `contentAsString` or a bare string are read).
+- **Scans.** Never seen populated. A scan carrying a `dcsId` + extension is listed with
+  `documentId` / `fileExtension` for `mah_get_document`; viewer URLs (single-use,
+  credential-like) are never returned.
+- **Linked results (pathology).** Read from `linkedResults`, `relatedResults`,
+  `linkedOrders`, `pathologyResults` or `associatedResults`, whichever exists.
+- **Not released.** Read from `warningMessage` / `warningType` (release wording) or
+  `showDetails: false` with no content; the real wording is unknown.
+- **Marking read.** Whether `GetDetails` itself marks a result read, as opening it in the
+  web app does, is unknown; no separate mark-read request is known, so the tool cannot
+  avoid or control it.

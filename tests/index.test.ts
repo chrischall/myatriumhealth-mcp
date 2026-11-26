@@ -65,6 +65,7 @@ describe('tool roster', () => {
       'mah_get_image',
       'mah_get_message',
       'mah_get_patient_context',
+      'mah_get_test_result',
       'mah_list_allergies',
       'mah_list_billing_accounts',
       'mah_list_care_team',
