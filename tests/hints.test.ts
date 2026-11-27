@@ -154,6 +154,7 @@ const EXPECTED_INTENT: Record<string, string> = {
   mah_list_documents: 'whats-new',
   mah_get_document: 'lookup',
   mah_get_patient_context: 'lookup',
+  mah_get_test_result: 'lookup',
   mah_list_allergies: 'lookup',
   mah_list_billing_accounts: 'whats-due',
   mah_list_care_team: 'lookup',

@@ -349,3 +349,81 @@ changed no cookie value; only a context switch did.
 **Observed effect.** With the account holder selected, `conversations/GetConversationList`
 returned 14 threads; with a proxy subject selected, 3 — none of which appeared in the
 account holder's list. Switching back returned exactly the original 14.
+
+## Test result details
+
+`mah_get_test_result` uses the requests that public Epic MyChart clients send from the
+React `/app/test-results` activity (read from their published code).
+
+**Verified live 2026-11-26** on my.atriumhealth.org (owner-approved, bridge-less session;
+one LAB, one PROCEDURE and one IMAGING result opened):
+- `GetDetails` takes the key `mah_list_test_results` now gives (the order group's key),
+  and accepts an empty `PageNonce`; every result answered `available`.
+- A lab's components came back with value, units, range and history (3 earlier values per
+  component from `GetMultipleHistoricalResultComponents`); only 1 of 10 carried a flag.
+- The procedure and imaging reports came back as clean text (`studyResult`), no HTML or
+  RTF left.
+- The imaging result listed 22 `scans[]` as `{dcsId, fileExtension}` (pdf, png, jpg).
+  `mah_get_document` with that `documentId` **and its `fileExtension`** downloads the scan
+  (a 14.8 MB PDF). Without the extension `GetDocumentDetails` does not answer JSON here,
+  so this portal does not ignore it the way other MyChart clients report.
+- `orderMetadata.read` reads `Read` / `New` per result (in `GetList` and `GetDetails`).
+- **Opening a result marks it read.** A result `GetList` showed `New` answered `GetDetails`
+  with `read: "New"` (the state before the call), and the next `GetList` showed it `Read`.
+
+Still unverified (none of the three results had them): provider comments (all
+`providerComments: []`, `hasComment: false`), component comments (all empty), the
+rendered report (`reportDetails.reportID` was empty on all three, so `LoadReportContent`
+was never called), linked results and the not-released wording.
+
+**Which key.** `GetList` answers `newResultGroups[] {key, resultList[], organizationID,
+…}` and `newResults{<handle>: {key, name, orderMetadata, …}}`. Grouped by order
+(`groupBy: "ORDER"`), a group's `key` is the ORDER key and its `resultList` names the
+result keys in it; other clients pass the group key to `GetDetails`. `mah_list_test_results`
+therefore gives each result the key of the group listing it, else the result's own `key`.
+This portal takes the group key (verified live 2026-11-26).
+
+`POST api/test-results/GetDetails` `{orderKey, organizationID: "", PageNonce: ""}` →
+`{orderName, key, results[]}`. Each result: `name, key, isAbnormal, showDetails,
+warningType, warningMessage, hasComment`, `orderMetadata {resultType, resultStatus,
+orderProviderName, authorizingProviderName, readingProviderName, resultTimestampDisplay,
+prioritizedInstantISO, prioritizedInstantDisplay, latestUpdateInstantISO,
+collectionTimestampsDisplay, specimensDisplay, resultingLab{name, …}, read}`,
+`resultComponents[] {componentInfo{componentID, name, commonName, units},
+componentResultInfo{value, isValueRtf, numericValue, referenceRange{formattedReferenceRange,
+low, high, …}, abnormalFlagCategoryValue}, componentComments{contentAsString,
+contentAsHtml, isRTF}}`, `studyResult {narrative, impression, addenda[],
+combinedRTFNarrativeImpression}` (each `{contentAsString, contentAsHtml, isRTF,
+signingInstantTimestamp}`), `resultNote`, `resultLetter`, `providerComments[]
+{commentText, providerName, commentDate}`, `reportDetails {reportID, reportVars{ordId,
+ordDat}, isDownloadablePDFReport}`, `scans[]`, `imageStudies[]`, `fdiLink`. Other clients
+report `abnormalFlagCategoryValue` as the literal `"Unknown"` on every component they
+saw, so the reference range is often the only abnormality signal. An unknown `orderKey`
+answers 200 with an EMPTY envelope (blank `orderName`, one nameless result), never an
+error: the tool reports that as `status: "not-found"`.
+
+`POST api/past-results/GetMultipleHistoricalResultComponents` `{orderID: <orderKey>,
+selectedComponentIDs: [], isInitialLoad: true, startTime: "", endTime: "",
+organizationID: "", isCustomFilterEnabled: false, PageNonce: ""}` →
+`{historicalResults{<componentID>: {historicalResultData[{dateISO, value,
+referenceRange}]}}}`, the trend. Best effort.
+
+`POST api/report-content/LoadReportContent` `{reportID, assumedVariables{ordId, ordDat},
+isFullReportPage: false, uniqueClass: "EID-4", nonce: ""}` → `{reportContent (HTML),
+reportCss, …}`, the rendered report. `reportID` names a report TEMPLATE shared by every
+result of a kind; `ordId` / `ordDat` pick the report. Best effort.
+
+Not established, and parsed loosely (absent, never a throw):
+
+- **Provider comments by reference.** The list's `providerComments` can hold only a
+  `wmgId`; the tool looks that id up in `GetList`'s `newComments` map (value shape
+  unknown: `commentText`, `content`, `contentAsString` or a bare string are read).
+- **Scans.** Verified live: `{dcsId, fileExtension}`, listed as `documentId` /
+  `fileExtension` for `mah_get_document`, which needs both. Viewer URLs (single-use,
+  credential-like) are never returned.
+- **Linked results (pathology).** Read from `linkedResults`, `relatedResults`,
+  `linkedOrders`, `pathologyResults` or `associatedResults`, whichever exists.
+- **Not released.** Read from `warningMessage` / `warningType` (release wording) or
+  `showDetails: false` with no content; the real wording is unknown.
+- **Marking read.** `GetDetails` marks the result read (verified live 2026-11-26); no
+  request is known that opens it without doing so, so the tool cannot avoid or control it.

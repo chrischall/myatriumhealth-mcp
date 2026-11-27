@@ -127,6 +127,10 @@
       "description": "List lab and imaging results with abnormal flags and provider comments"
     },
     {
+      "name": "mah_get_test_result",
+      "description": "Open one result: header, lab values with ranges and flags, report text, provider comments, scans"
+    },
+    {
       "name": "mah_list_upcoming_visits",
       "description": "List upcoming and in-progress appointments"
     },

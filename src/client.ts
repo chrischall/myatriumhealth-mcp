@@ -655,6 +655,45 @@ export class MyAtriumHealthClient {
     return this.readFile(portalPath(url, { allowAppRelative: true }), html);
   }
 
+  /**
+   * One result order's detail page data: header, components, study text,
+   * comments, scans (`api/test-results/GetDetails`). UNVERIFIED on this
+   * portal: the body is the one public MyChart clients send. An unknown key
+   * answers a well-formed but empty envelope, not an error.
+   */
+  async testResultDetails(orderKey: string, organizationID = ''): Promise<unknown> {
+    return this.api('test-results/GetDetails', { orderKey, organizationID, PageNonce: '' }, READ);
+  }
+
+  /** The trend for an order's components (`api/past-results/...`). UNVERIFIED. */
+  async testResultHistory(orderID: string): Promise<unknown> {
+    return this.api('past-results/GetMultipleHistoricalResultComponents', {
+      orderID,
+      selectedComponentIDs: [],
+      isInitialLoad: true,
+      startTime: '',
+      endTime: '',
+      organizationID: '',
+      isCustomFilterEnabled: false,
+      PageNonce: '',
+    }, READ);
+  }
+
+  /**
+   * A result's rendered report (`api/report-content/LoadReportContent`).
+   * `reportID` names a report TEMPLATE; `ordId` / `ordDat` pick the report.
+   * UNVERIFIED.
+   */
+  async reportContent(reportID: string, vars: { ordId: string; ordDat: string }): Promise<unknown> {
+    return this.api('report-content/LoadReportContent', {
+      reportID,
+      assumedVariables: { ordId: vars.ordId, ordDat: vars.ordDat },
+      isFullReportPage: false,
+      uniqueClass: 'EID-4',
+      nonce: '',
+    }, READ);
+  }
+
   /** Letters (app bundle: `letters`). `{letters[], users, departments}`. */
   async letters(): Promise<unknown> {
     return this.api('letters/GetLettersList', {}, READ);

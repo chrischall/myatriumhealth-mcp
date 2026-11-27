@@ -57,7 +57,7 @@ async function servedTools() {
 
 describe('tool annotations', () => {
   it('covers the full served surface', async () => {
-    expect(await servedTools()).toHaveLength(29);
+    expect(await servedTools()).toHaveLength(30);
   });
 
   it('sets an explicit boolean destructiveHint on every write', async () => {
