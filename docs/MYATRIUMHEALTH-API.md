@@ -350,20 +350,37 @@ changed no cookie value; only a context switch did.
 returned 14 threads; with a proxy subject selected, 3 — none of which appeared in the
 account holder's list. Switching back returned exactly the original 14.
 
-## Test result details — UNVERIFIED on this portal
+## Test result details
 
 `mah_get_test_result` uses the requests that public Epic MyChart clients send from the
-React `/app/test-results` activity (read from their published code, not captured here:
-no live call was made while building it, because opening a result may mark it read).
-**None of the shapes below has been exercised against my.atriumhealth.org.** Confirm each
-with a signed-in session and update this section.
+React `/app/test-results` activity (read from their published code).
+
+**Verified live 2026-11-26** on my.atriumhealth.org (owner-approved, bridge-less session;
+one LAB, one PROCEDURE and one IMAGING result opened):
+- `GetDetails` takes the key `mah_list_test_results` now gives (the order group's key),
+  and accepts an empty `PageNonce`; every result answered `available`.
+- A lab's components came back with value, units, range and history (3 earlier values per
+  component from `GetMultipleHistoricalResultComponents`); only 1 of 10 carried a flag.
+- The procedure and imaging reports came back as clean text (`studyResult`), no HTML or
+  RTF left.
+- The imaging result listed 22 `scans[]` as `{dcsId, fileExtension}` (pdf, png, jpg).
+  `mah_get_document` with that `documentId` **and its `fileExtension`** downloads the scan
+  (a 14.8 MB PDF). Without the extension `GetDocumentDetails` does not answer JSON here,
+  so this portal does not ignore it the way other MyChart clients report.
+- `orderMetadata.read` reads `Read` / `New` per result (in `GetList` and `GetDetails`).
+
+Still unverified (none of the three results had them): provider comments (all
+`providerComments: []`, `hasComment: false`), component comments (all empty), the
+rendered report (`reportDetails.reportID` was empty on all three, so `LoadReportContent`
+was never called), linked results, the not-released wording, and whether opening a result
+flips `read` from `New` to `Read`.
 
 **Which key.** `GetList` answers `newResultGroups[] {key, resultList[], organizationID,
 …}` and `newResults{<handle>: {key, name, orderMetadata, …}}`. Grouped by order
 (`groupBy: "ORDER"`), a group's `key` is the ORDER key and its `resultList` names the
 result keys in it; other clients pass the group key to `GetDetails`. `mah_list_test_results`
 therefore gives each result the key of the group listing it, else the result's own `key`.
-Which of the two this portal wants is unverified.
+This portal takes the group key (verified live 2026-11-26).
 
 `POST api/test-results/GetDetails` `{orderKey, organizationID: "", PageNonce: ""}` →
 `{orderName, key, results[]}`. Each result: `name, key, isAbnormal, showDetails,
@@ -400,8 +417,8 @@ Not established, and parsed loosely (absent, never a throw):
 - **Provider comments by reference.** The list's `providerComments` can hold only a
   `wmgId`; the tool looks that id up in `GetList`'s `newComments` map (value shape
   unknown: `commentText`, `content`, `contentAsString` or a bare string are read).
-- **Scans.** Never seen populated. A scan carrying a `dcsId` + extension is listed with
-  `documentId` / `fileExtension` for `mah_get_document`; viewer URLs (single-use,
+- **Scans.** Verified live: `{dcsId, fileExtension}`, listed as `documentId` /
+  `fileExtension` for `mah_get_document`, which needs both. Viewer URLs (single-use,
   credential-like) are never returned.
 - **Linked results (pathology).** Read from `linkedResults`, `relatedResults`,
   `linkedOrders`, `pathologyResults` or `associatedResults`, whichever exists.

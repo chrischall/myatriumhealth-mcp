@@ -19,8 +19,8 @@ const RESULT_NOTE =
 /**
  * The order key for each result handle in a GetList answer. Grouped by order,
  * a group's key is the order's (what GetDetails takes) and its resultList names
- * the results in it; otherwise the result's own key stands in. UNVERIFIED
- * which of the two this portal's GetDetails wants (docs/MYATRIUMHEALTH-API.md).
+ * the results in it; otherwise the result's own key stands in. This portal's
+ * GetDetails takes the group key (verified live 2026-11-26, docs/MYATRIUMHEALTH-API.md).
  */
 function orderKeys(r: { groupBy?: unknown; newResultGroups?: unknown }): Map<string, string> {
   const out = new Map<string, string>();
@@ -127,13 +127,14 @@ export function registerResultTools(
         'ordering/authorizing/reading provider, specimen, lab); lab components (name, value, units, ' +
         'reference range, flag, comment, and recent history when the portal has it); the report as ' +
         'clean text (narrative, impression, addenda, and the rendered report); the provider note and ' +
-        'provider comments as text; scans (open one with a documentId via mah_get_document) and ' +
+        'provider comments as text; scans (open one via mah_get_document with its documentId AND fileExtension) and ' +
         'linked results such as pathology (open with this tool). Inline report images are ' +
         '[image N: fileName=...] placeholders for mah_get_image. status is "available", ' +
         '"not-released" (the result exists but is not released to the patient yet) or "not-found". ' +
         'Opening a result may mark it read in the portal, as viewing it in the web app does; this ' +
-        'cannot be turned off. view: "full" returns the portal\'s GetDetails answer untouched instead. UNVERIFIED: the detail endpoints are the ones other MyChart clients use ' +
-        'and have not yet been checked on this portal. ' +
+        'cannot be turned off. view: "full" returns the portal\'s GetDetails answer untouched instead. Verified live for labs, ' +
+        'procedure and imaging reports and scans; provider comments, rendered reports and linked results are ' +
+        'not yet seen on this portal. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: toolAnnotations({ readOnly: true, openWorld: true }),
       _meta: healthMeta('lookup', {
