@@ -368,12 +368,13 @@ one LAB, one PROCEDURE and one IMAGING result opened):
   (a 14.8 MB PDF). Without the extension `GetDocumentDetails` does not answer JSON here,
   so this portal does not ignore it the way other MyChart clients report.
 - `orderMetadata.read` reads `Read` / `New` per result (in `GetList` and `GetDetails`).
+- **Opening a result marks it read.** A result `GetList` showed `New` answered `GetDetails`
+  with `read: "New"` (the state before the call), and the next `GetList` showed it `Read`.
 
 Still unverified (none of the three results had them): provider comments (all
 `providerComments: []`, `hasComment: false`), component comments (all empty), the
 rendered report (`reportDetails.reportID` was empty on all three, so `LoadReportContent`
-was never called), linked results, the not-released wording, and whether opening a result
-flips `read` from `New` to `Read`.
+was never called), linked results and the not-released wording.
 
 **Which key.** `GetList` answers `newResultGroups[] {key, resultList[], organizationID,
 …}` and `newResults{<handle>: {key, name, orderMetadata, …}}`. Grouped by order
@@ -424,6 +425,5 @@ Not established, and parsed loosely (absent, never a throw):
   `linkedOrders`, `pathologyResults` or `associatedResults`, whichever exists.
 - **Not released.** Read from `warningMessage` / `warningType` (release wording) or
   `showDetails: false` with no content; the real wording is unknown.
-- **Marking read.** Whether `GetDetails` itself marks a result read, as opening it in the
-  web app does, is unknown; no separate mark-read request is known, so the tool cannot
-  avoid or control it.
+- **Marking read.** `GetDetails` marks the result read (verified live 2026-11-26); no
+  request is known that opens it without doing so, so the tool cannot avoid or control it.

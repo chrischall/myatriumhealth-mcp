@@ -131,7 +131,7 @@ export function registerResultTools(
         'linked results such as pathology (open with this tool). Inline report images are ' +
         '[image N: fileName=...] placeholders for mah_get_image. status is "available", ' +
         '"not-released" (the result exists but is not released to the patient yet) or "not-found". ' +
-        'Opening a result may mark it read in the portal, as viewing it in the web app does; this ' +
+        'Opening a result marks it read in the portal, as viewing it in the web app does; this ' +
         'cannot be turned off. view: "full" returns the portal\'s GetDetails answer untouched instead. Verified live for labs, ' +
         'procedure and imaging reports and scans; provider comments, rendered reports and linked results are ' +
         'not yet seen on this portal. ' +
