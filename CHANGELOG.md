@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.6.0...v1.7.0) (2026-11-27)
+
+
+### Features
+
+* **results:** add mah_get_test_result to open a single result ([#154](https://github.com/chrischall/myatriumhealth-mcp/issues/154)) ([#155](https://github.com/chrischall/myatriumhealth-mcp/issues/155)) ([a51f43a](https://github.com/chrischall/myatriumhealth-mcp/commit/a51f43a10c8a952816f744a292a9f8e43a0f23ad))
+
 ## [1.6.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.5.1...v1.6.0) (2026-11-23)
 
 
