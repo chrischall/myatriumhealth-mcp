@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.7.0...v1.7.1) (2026-11-28)
+
+
+### Bug Fixes
+
+* **results:** return lab component values as plain text, not Epic HTML ([#157](https://github.com/chrischall/myatriumhealth-mcp/issues/157)) ([db30f0d](https://github.com/chrischall/myatriumhealth-mcp/commit/db30f0d49cbe0c5099fd558fbaf3bfb8a6bd1193))
+
 ## [1.7.0](https://github.com/chrischall/myatriumhealth-mcp/compare/v1.6.0...v1.7.0) (2026-11-27)
 
 
