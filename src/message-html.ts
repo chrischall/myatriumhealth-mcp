@@ -98,6 +98,11 @@ export function messageHtmlToText(html: string | null | undefined): MessageText 
       image(el);
       return;
     }
+    // Epic's tab stop: a fixed-width span padded with &nbsp;. One space reads the same.
+    if (tag === 'span' && /(^|\s)tab(\s|$)/i.test(el.getAttribute('class') ?? '')) {
+      out.push(' ');
+      return;
+    }
     if (depth > MAX_DEPTH) {
       out.push(el.text.replace(/[\s ]+/g, ' '));
       return;
@@ -141,4 +146,40 @@ export function messageHtmlToText(html: string | null | undefined): MessageText 
   }
   while (kept.at(-1) === '') kept.pop();
   return { text: kept.join('\n'), images };
+}
+
+/**
+ * Whether a field value is markup rather than text: it opens with a tag, or is
+ * Epic's fmtConv wrapper. A lab value such as "<0.5" or ">60" is text.
+ */
+export function looksLikeHtml(s: string): boolean {
+  return /^\s*<[a-z!/]/i.test(s) || /class\s*=\s*["']?fmtConv/i.test(s);
+}
+
+/**
+ * Plain text kept as it was laid out (a fixed-width report keeps its columns):
+ * \r\n becomes \n, trailing spaces and blank lines at either end go.
+ */
+export function normalizePlain(s: string): string {
+  return s
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((l) => l.replace(/[ \t\u00a0]+$/, ''))
+    .join('\n')
+    .replace(/^\n+|\n+$/g, '')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+/**
+ * A result component's value (or a history point's) as plain text: Epic
+ * fmtConv HTML is rendered like a message body, anything else is kept as laid
+ * out. `html` renders the markup (a result's collector numbers its images).
+ */
+export function componentText(
+  value: string | null | undefined,
+  html: (markup: string) => string | undefined = (m) => messageHtmlToText(m).text,
+): string | undefined {
+  if (typeof value !== 'string' || value.trim() === '') return undefined;
+  const t = looksLikeHtml(value) ? html(value) : normalizePlain(value);
+  return t === undefined || t === '' ? undefined : t;
 }

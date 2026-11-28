@@ -4,7 +4,7 @@
 // on this portal (docs/MYATRIUMHEALTH-API.md "Test result details"), so every
 // field is read loosely: a missing or mistyped one is absent, never a throw.
 
-import { messageHtmlToText, type MessageImage } from './message-html.js';
+import { componentText, messageHtmlToText, normalizePlain, type MessageImage } from './message-html.js';
 import { looksLikeRtf, rtfToText } from './rtf.js';
 import { tidy } from './tools/_project.js';
 
@@ -53,7 +53,13 @@ class Collector {
     if (s === undefined) return undefined;
     if (looksLikeRtf(s)) return cap(rtfToText(s));
     if (/<\/?[a-z][^>]*>/i.test(s)) return this.html(s);
-    return cap(s.trim());
+    return cap(normalizePlain(s));
+  }
+
+  /** A component value: rendered HTML (images numbered on) or text as laid out. */
+  value(v: string): string | undefined {
+    const t = componentText(v, (m) => this.html(m));
+    return t === undefined ? undefined : cap(t);
   }
 
   /** HTML as text, its images renumbered after the ones already seen. */
@@ -99,6 +105,14 @@ export function resolveComment(entry: unknown): CommentOut | undefined {
   return c.text === undefined ? undefined : c;
 }
 
+/** A `value` field as text: RTF, Epic HTML or plain, with numbers as strings. */
+function valueText(r: Rec, text: (v: string) => string | undefined): string | undefined {
+  const v = r['value'];
+  if (typeof v !== 'string') return str(v);
+  if (r['isValueRtf'] === true || looksLikeRtf(v)) return str(rtfToText(v));
+  return text(v);
+}
+
 type HistoryPoint = { date?: string; value?: string; range?: string };
 
 function historyOf(raw: unknown): Map<string, HistoryPoint[]> {
@@ -106,10 +120,9 @@ function historyOf(raw: unknown): Map<string, HistoryPoint[]> {
   for (const [id, h] of Object.entries(rec(rec(raw)['historicalResults']))) {
     const points = list(rec(h)['historicalResultData']).map((p) => {
       const r = rec(p);
-      const v = typeof r['value'] === 'string' && (r['isValueRtf'] === true || looksLikeRtf(r['value'])) ? rtfToText(r['value']) : r['value'];
       return tidy({
         date: first(r['dateISO'], r['date']),
-        value: str(v),
+        value: valueText(r, (v) => componentText(v)),
         range: str(rec(r['referenceRange'])['formattedReferenceRange']),
       }) as HistoryPoint;
     });
@@ -123,15 +136,13 @@ function component(c: unknown, col: Collector, history: Map<string, HistoryPoint
   const r = rec(c);
   const info = rec(r['componentInfo']);
   const res = rec(r['componentResultInfo']);
-  const raw = res['value'];
-  const value = typeof raw === 'string' && (res['isValueRtf'] === true || looksLikeRtf(raw)) ? rtfToText(raw) : raw;
   // The portal sends "Unknown" when it has no verdict; that is no flag.
   const flag = str(res['abnormalFlagCategoryValue'] ?? res['abnormalFlag'] ?? res['flag']);
   const id = str(info['componentID']);
   const hist = id === undefined ? undefined : history.get(id);
   return tidy({
     name: first(info['name'], info['commonName']),
-    value: str(value),
+    value: valueText(res, (v) => col.value(v)),
     units: str(info['units']),
     range: str(rec(res['referenceRange'])['formattedReferenceRange']),
     flag: flag === undefined || /^(unknown|none|normal)$/i.test(flag) ? undefined : flag,

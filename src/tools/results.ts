@@ -93,8 +93,8 @@ export function registerResultTools(
                       whenIso: om['prioritizedInstantISO'],
                       provider: om['orderProviderName'],
                       resultType: om['resultType'],
-                      comments: (v['providerComments'] as { content?: string }[] | undefined)?.map(
-                        (c) => c.content,
+                      comments: (v['providerComments'] as unknown[] | undefined)?.map(
+                        (c) => resolveComment(c)?.text,
                       ),
                     });
                   });
@@ -125,7 +125,8 @@ export function registerResultTools(
         'Open one lab, imaging or procedure result from mah_list_test_results (pass its key). Returns ' +
         'the header (name, resultType, status preliminary/final, abnormal, collected, resulted, ' +
         'ordering/authorizing/reading provider, specimen, lab); lab components (name, value, units, ' +
-        'reference range, flag, comment, and recent history when the portal has it); the report as ' +
+        'reference range, flag, comment, and recent history when the portal has it; values and comments ' +
+        'are plain text, a pathology section\'s Epic HTML rendered and a fixed-width report kept as laid out); the report as ' +
         'clean text (narrative, impression, addenda, and the rendered report); the provider note and ' +
         'provider comments as text; scans (open one via mah_get_document with its documentId AND fileExtension) and ' +
         'linked results such as pathology (open with this tool). Inline report images are ' +

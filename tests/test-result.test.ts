@@ -366,6 +366,31 @@ describe('mah_get_test_result with bridge-less sign-in and an expired session', 
   });
 });
 
+describe('mah_list_test_results comments', () => {
+  it('gives provider comments as plain text, never Epic HTML', async () => {
+    const h = harness((init) =>
+      init.path.endsWith('GetList')
+        ? {
+            newResults: {
+              'RES-LAB-1^': {
+                name: 'SAMPLE PANEL',
+                key: 'RES-LAB-1',
+                orderMetadata: {},
+                providerComments: [
+                  { content: '<div class="fmtConv"><p>The sample&#39;s values are &quot;fine&quot;.</p><p>&nbsp;</p><p>Recheck later.</p></div>' },
+                  { content: 'Plain comment.\r\nSecond line.' },
+                ],
+              },
+            },
+          }
+        : undefined,
+    );
+    const out = await h.tool('mah_list_test_results', { view: 'compact' });
+    const [item] = (out.data as { items: { comments?: string[] }[] }).items;
+    expect(item!.comments).toEqual(['The sample\'s values are "fine".\n\nRecheck later.', 'Plain comment.\nSecond line.']);
+  });
+});
+
 describe('mah_list_test_results key', () => {
   it('gives each result the order key mah_get_test_result takes', async () => {
     const h = harness((init) =>
